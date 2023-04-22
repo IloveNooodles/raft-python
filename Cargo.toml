@@ -1,7 +1,15 @@
 [package]
-name = "raft-consensus"
+name = "raft_consensus"
 version = "0.1.0"
 edition = "2021"
+
+[[bin]]
+name = "raft_consensus"
+path = "src/bin/main.rs"
+
+[lib]
+name = "raft_consensus"
+path = "src/lib.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
