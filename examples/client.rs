@@ -1,6 +1,10 @@
+use reqwest::{Error, Response};
+
 #[tokio::main]
 async fn main() {
-    let body = reqwest::get("http://localhost:8000").await;
+    let client = reqwest::Client::new();
+    /* GET */
+    let body = reqwest::get("http://localhost:8000/headers").await;
 
     let result = match body {
         Err(e) => {
@@ -11,4 +15,16 @@ async fn main() {
     };
 
     println!("body = {:?}", result);
+
+    /* POST */
+    let res = client
+        .post("http://localhost:8000/path/1231231")
+        .body("THIS IS BODY")
+        .send()
+        .await;
+
+    match res {
+        Err(e) => println!("{:#?}", e),
+        Ok(a) => println!("{:#?}", a),
+    }
 }
