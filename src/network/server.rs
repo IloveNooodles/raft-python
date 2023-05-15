@@ -22,7 +22,7 @@ use log::{error, info};
 use super::super::logger;
 
 /// Example tokio server
-pub async fn create(port: u16) {
+pub async fn start_server(port: u16) {
     // let mut state = mq::AppState::new();
     logger::init_logger();
 
