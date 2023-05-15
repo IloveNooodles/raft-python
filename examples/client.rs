@@ -4,7 +4,7 @@ use reqwest::{Error, Response};
 async fn main() {
     let client = reqwest::Client::new();
     /* GET */
-    let body = reqwest::get("http://localhost:8000/headers").await;
+    let body = reqwest::get("http://localhost:8000/").await;
 
     let result = match body {
         Err(e) => {
