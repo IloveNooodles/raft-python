@@ -24,6 +24,18 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 "log":    server.instance.log,
                 "cluster_addr_list": server.instance.cluster_addr_list,
             })
+        
+        @server.register_function
+        def heartbeat(request):
+            request = json.loads(request)
+            addr = Address(request["ip"], int(request["port"]))
+            
+            print(f"Heartbeat from {addr.ip}:{addr.port}")
+            server.instance.log.append(request)
+            return json.dumps({
+                "heartbeat_response": "ack",
+                "log":                server.instance.log,
+            })
 
         server.serve_forever()
 

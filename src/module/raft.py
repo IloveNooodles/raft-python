@@ -4,6 +4,7 @@ from xmlrpc.client import ServerProxy
 from typing        import Any, List
 from enum          import Enum
 from module.struct.address import Address
+from module.struct.message_queue import MessageQueue
 
 class RaftNode:
     HEARTBEAT_INTERVAL   = 1
@@ -49,10 +50,12 @@ class RaftNode:
         self.heartbeat_thread.start()
 
     async def __leader_heartbeat(self):
-        # TODO : Send periodic heartbeat
         while True:
             self.__print_log("[Leader] Sending heartbeat...")
-            pass
+            for addr in self.cluster_addr_list:
+                if addr == self.address:
+                    continue
+                self.heartbeat(addr)
             await asyncio.sleep(RaftNode.HEARTBEAT_INTERVAL)
 
     def __try_to_apply_membership(self, contact_addr: Address):
@@ -64,10 +67,12 @@ class RaftNode:
                 "port": contact_addr.port,
             } 
         }
+
         while response["status"] != "success":
             redirected_addr = Address(response["address"]["ip"], response["address"]["port"])
             response        = self.__send_request(self.address, "apply_membership", redirected_addr)
-        self.log                 = response["log"]
+        
+        self.log.append(response["log"])
         self.cluster_addr_list   = response["cluster_addr_list"]
         self.cluster_leader_addr = redirected_addr
 
@@ -81,17 +86,23 @@ class RaftNode:
         return response
 
     # Inter-node RPCs
-    def heartbeat(self, json_request: str) -> "json":
-        # TODO : Implement heartbeat
+    def heartbeat(self, follower_addr: Address) -> "json":
         response = {
-            "heartbeat_response": "ack",
+            "heartbeat_response": "nack",
             "address":            self.address,
         }
-        return json.dumps(response)
 
+        while response["heartbeat_response"] != "ack":
+            request = {
+                "ip":   self.address.ip,
+                "port": self.address.port,
+            }
+            response = self.__send_request(request, "heartbeat", follower_addr)
 
-    # Client RPCs
+        return response
+
+    # Client RPCs 
     def execute(self, json_request: str) -> "json":
         request = json.loads(json_request)
         # TODO : Implement execute
-        return json.dumps(request)
+        return response
