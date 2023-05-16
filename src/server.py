@@ -3,13 +3,28 @@ from module.struct.message_queue           import MessageQueue
 from module.raft        import RaftNode
 from xmlrpc.server      import SimpleXMLRPCServer
 
-import sys
+import sys, json
 
 def start_serving(addr: Address, contact_node_addr: Address):
     print(f"Starting Raft Server at {addr.ip}:{addr.port}")
+    
     with SimpleXMLRPCServer((addr.ip, addr.port)) as server:
         server.register_introspection_functions()
         server.register_instance(RaftNode(MessageQueue(), addr, contact_node_addr))
+
+        @server.register_function
+        def apply_membership(request):
+            request = json.loads(request)
+            addr = Address(request["ip"], int(request["port"]))
+            
+            print(f"Applying membership for {addr.ip}:{addr.port}")
+            server.instance.cluster_addr_list.append(addr)
+            return json.dumps({
+                "status": "success",
+                "log":    server.instance.log,
+                "cluster_addr_list": server.instance.cluster_addr_list,
+            })
+
         server.serve_forever()
 
 if __name__ == "__main__":
