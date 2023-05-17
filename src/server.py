@@ -1,4 +1,6 @@
 import json
+import os
+import signal
 import sys
 from xmlrpc.server import SimpleXMLRPCServer
 
@@ -45,8 +47,11 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 }
             )
 
-        server.serve_forever()
-
+        try:
+          server.serve_forever()
+        except KeyboardInterrupt:
+          server.shutdown()
+          os.kill(os.getpid(), signal.SIGTERM)
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
