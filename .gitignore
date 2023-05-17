@@ -16,3 +16,5 @@ tempCodeRunnerFile.py
 pyvenv.cfg
 .venv
 pip-selfcheck.json
+.vscode/
+**/__pycache__/
