@@ -10,6 +10,15 @@ from module.struct.message_queue import MessageQueue
 
 
 def start_serving(addr: Address, contact_node_addr: Address):
+    """ 
+    Spin the server forever
+    
+    Can be killed using ctrl-c
+    
+    We need to make sure the server request is IDEMPOTENT to implement at least once RPC
+    
+    We can do this by adding ID to each request
+    """
     print(f"Starting Raft Server at {addr.ip}:{addr.port}")
 
     with SimpleXMLRPCServer((addr.ip, addr.port)) as server:
@@ -18,6 +27,9 @@ def start_serving(addr: Address, contact_node_addr: Address):
 
         @server.register_function
         def apply_membership(request):
+            """ 
+            When server connect to another server this function will get called
+            """
             request = json.loads(request)
             addr = Address(request["ip"], int(request["port"]))
 
@@ -35,6 +47,9 @@ def start_serving(addr: Address, contact_node_addr: Address):
 
         @server.register_function
         def heartbeat(request):
+            """ 
+            When server connect to another server this function will get called
+            """
             request = json.loads(request)
             addr = Address(request["ip"], int(request["port"]))
 
@@ -59,8 +74,10 @@ if __name__ == "__main__":
         exit()
 
     contact_addr = None
+
     if len(sys.argv) == 5:
         contact_addr = Address(sys.argv[3], int(sys.argv[4]))
+
     server_addr = Address(sys.argv[1], int(sys.argv[2]))
 
     start_serving(server_addr, contact_addr)
