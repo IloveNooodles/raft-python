@@ -3,6 +3,7 @@ import json
 import socket
 import time
 from enum import Enum
+from random import random
 from threading import Thread
 from typing import Any, List
 from xmlrpc.client import ServerProxy
@@ -38,7 +39,12 @@ class RaftNode:
         self.type:                RaftNode.NodeType = RaftNode.NodeType.FOLLOWER
         self.log:                 List[str, str]    = []
         self.app:                 Any               = application
+        
+        # Election stuff
         self.election_term:       int               = 0
+        self.election_timeout:    int               = RaftNode.ELECTION_TIMEOUT_MIN + random() 
+        self.voted_for:           int               = -1
+
         self.cluster_addr_list:   List[Address]     = []
         self.cluster_leader_addr: Address           = None
         if contact_addr is None:
@@ -46,6 +52,7 @@ class RaftNode:
             self.__initialize_as_leader()
         else:
             self.__try_to_apply_membership(contact_addr)
+            self.__listen_timeout()
 
     # Internal Raft Node methods
     def __print_log(self, text: str):
@@ -71,11 +78,39 @@ class RaftNode:
                 self.heartbeat(addr)
             await asyncio.sleep(RaftNode.HEARTBEAT_INTERVAL)
 
+    def __set_election_timeout(self, timeout=None):
+        if timeout:
+          self.election_timeout = timeout
+        else:
+          self.election_timeout = time.time() + RaftNode.ELECTION_TIMEOUT_MIN + random()    
+    
+    def __listen_timeout(self):
+        self.timeout_thread = Thread(target=asyncio.run,args=[self.__on_election_timeout()])
+        self.timeout_thread.start()
+    
+    async def __on_election_timeout(self):
+
+        # Check if role is not Leader
+        if self.type == RaftNode.NodeType.LEADER:
+            return
+        
+        # If timeout then start election
+        if time.time() > self.election_timeout:
+          self.__print_log("No heartbeat found")
+          self.type = RaftNode.NodeType.CANDIDATE
+          self.__print_log("Switching to candidate")
+          self.election_term += 1
+          self.__start_election()
+    
+    def __start_election(self):
+        pass
+
     def __try_to_apply_membership(self, contact_addr: Address):
         """ 
         Follower wants to apply membership to leader
         
         1. Contact the leader first
+        2. Kalo gagal coba terus sampe berhasil
         """
         redirected_addr = contact_addr
         response = {
@@ -134,6 +169,9 @@ class RaftNode:
                 "port": self.address.port,
             }
             response = self.__send_request(request, "heartbeat", follower_addr)
+        
+        # If response is success then update the timeout
+        self.__set_election_timeout()
 
     # Client RPCs 
     def execute(self, json_request: str) -> "json":
