@@ -19,6 +19,7 @@ def start_serving(addr: Address):
             break
         try:
           # Client will run `execute` functions in server.py
+          # Commands will be either queue or dequeue
           response = client.execute(command)
           print(response)
         except:

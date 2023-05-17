@@ -28,7 +28,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
         @server.register_function
         def apply_membership(request):
             """ 
-            When server connect to another server this function will get called
+            When server connect to another server this function will get called via RPC
             
             Need to make sure
             1. All available nodes know when there's new node
@@ -40,7 +40,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
             print(f"Applying membership for {addr.ip}:{addr.port}")
             server.instance.log.append(f"Applying membership for {addr.ip}:{addr.port}")
             server.instance.cluster_addr_list.append(addr)
-
+            
             return json.dumps(
                 {
                     "status": "success",
@@ -52,12 +52,14 @@ def start_serving(addr: Address, contact_node_addr: Address):
         @server.register_function
         def heartbeat(request):
             """ 
-            When server connect to another server this function will get called
+            this function will get called via RPC call
+            
+            Should be the follower that receives this
             """
             request = json.loads(request)
             addr = Address(request["ip"], int(request["port"]))
 
-            print(f"Heartbeat from {addr.ip}:{addr.port}")
+            print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
 
             return json.dumps(
                 {
@@ -71,6 +73,16 @@ def start_serving(addr: Address, contact_node_addr: Address):
         except KeyboardInterrupt:
           server.shutdown()
           os.kill(os.getpid(), signal.SIGTERM)
+
+        # TODO add AppendEntriesRPC, RequestVoteRPC
+        
+        @server.register_function
+        def append_entries(request):
+            pass
+        
+        @server.register_function
+        def request_vote(request):
+            pass
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:

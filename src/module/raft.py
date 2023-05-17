@@ -12,6 +12,13 @@ from module.struct.message_queue import MessageQueue
 
 
 class RaftNode:
+    """ 
+    Implementation of Raft Node
+    
+    1. Election time is mostly between T and 2T (150ms - 300ms)
+    2. If server is follower and not receiveing anything from client, upgrade to candidate
+    3. Candidate will start election
+    """
     HEARTBEAT_INTERVAL   = 1
     ELECTION_TIMEOUT_MIN = 2
     ELECTION_TIMEOUT_MAX = 3
@@ -65,6 +72,11 @@ class RaftNode:
             await asyncio.sleep(RaftNode.HEARTBEAT_INTERVAL)
 
     def __try_to_apply_membership(self, contact_addr: Address):
+        """ 
+        Follower wants to apply membership to leader
+        
+        1. Contact the leader first
+        """
         redirected_addr = contact_addr
         response = {
             "status": "redirected",
@@ -84,6 +96,8 @@ class RaftNode:
 
     def __send_request(self, request: Any, rpc_name: str, addr: Address) -> "json":
         """ 
+        Send Request is invoking the RPC in another server
+        
         Need to check
         
         1. If the follower is down, just reply follower ignore (tetep ngirim kayak biasa aja walaupun mati)
@@ -106,6 +120,9 @@ class RaftNode:
 
     # Inter-node RPCs
     def heartbeat(self, follower_addr: Address) -> "json":
+        """ 
+        This function will send heartbeat to follower address
+        """
         response = {
             "heartbeat_response": "nack",
             "address":            self.address,
