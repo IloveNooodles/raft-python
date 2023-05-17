@@ -29,6 +29,10 @@ def start_serving(addr: Address, contact_node_addr: Address):
         def apply_membership(request):
             """ 
             When server connect to another server this function will get called
+            
+            Need to make sure
+            1. All available nodes know when there's new node
+            2. If this ip and port are already in the list then don't run again
             """
             request = json.loads(request)
             addr = Address(request["ip"], int(request["port"]))

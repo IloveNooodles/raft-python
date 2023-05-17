@@ -18,6 +18,7 @@ def start_serving(addr: Address):
         if command == "exit":
             break
         try:
+          # Client will run `execute` functions in server.py
           response = client.execute(command)
           print(response)
         except:

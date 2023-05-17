@@ -1,10 +1,15 @@
-import asyncio, socket, time, json
-from threading     import Thread
+import asyncio
+import json
+import socket
+import time
+from enum import Enum
+from threading import Thread
+from typing import Any, List
 from xmlrpc.client import ServerProxy
-from typing        import Any, List
-from enum          import Enum
+
 from module.struct.address import Address
 from module.struct.message_queue import MessageQueue
+
 
 class RaftNode:
     HEARTBEAT_INTERVAL   = 1
@@ -16,6 +21,9 @@ class RaftNode:
         LEADER    = 1
         CANDIDATE = 2
         FOLLOWER  = 3
+        
+        def __str__(self) -> str:
+            return self.name
 
     def __init__(self, application : Any, addr: Address, contact_addr: Address = None):
         socket.setdefaulttimeout(RaftNode.RPC_TIMEOUT)
@@ -34,7 +42,7 @@ class RaftNode:
 
     # Internal Raft Node methods
     def __print_log(self, text: str):
-        print(f"[{self.address}] [{time.strftime('%H:%M:%S')}] {text}")
+        print(f"[{self.address}] [{time.strftime('%H:%M:%S')}] [{self.type}] {text}")
 
     def __initialize_as_leader(self):
         self.__print_log("Initialize as leader node...")
@@ -49,7 +57,7 @@ class RaftNode:
 
     async def __leader_heartbeat(self):
         while True:
-            self.__print_log("[Leader] Sending heartbeat...")
+            self.__print_log("Sending heartbeat...")
             for addr in self.cluster_addr_list:
                 if addr == self.address:
                     continue
@@ -75,12 +83,25 @@ class RaftNode:
         self.cluster_leader_addr = redirected_addr
 
     def __send_request(self, request: Any, rpc_name: str, addr: Address) -> "json":
+        """ 
+        Need to check
+        
+        1. If the follower is down, just reply follower ignore (tetep ngirim kayak biasa aja walaupun mati)
+        """
         # Warning : This method is blocking
         node         = ServerProxy(f"http://{addr.ip}:{addr.port}")
         json_request = json.dumps(request)
         rpc_function = getattr(node, rpc_name)
-        response     = json.loads(rpc_function(json_request))
-        self.__print_log(response)
+        response = {
+            "heartbeat_response": "nack",
+            "address":            self.address,
+        }
+        try:
+          response     = json.loads(rpc_function(json_request))
+          self.__print_log(response)
+        except:
+          self.__print_log(f"[{addr}] Is not replying (nack)")
+        
         return response
 
     # Inter-node RPCs
