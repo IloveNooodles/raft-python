@@ -1,7 +1,8 @@
-from module.struct.address      import Address
+import sys
 from xmlrpc.client import ServerProxy
 
-import sys
+from module.struct.address import Address
+
 
 def start_serving(addr: Address):
     print(f"Starting Raft Client at {addr.ip}:{addr.port}")
@@ -13,6 +14,7 @@ def start_serving(addr: Address):
             break
         response = client.execute(command)
         print(response)
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
