@@ -32,8 +32,6 @@ class RaftNode:
         else:
             self.__try_to_apply_membership(contact_addr)
 
-
-
     # Internal Raft Node methods
     def __print_log(self, text: str):
         print(f"[{self.address}] [{time.strftime('%H:%M:%S')}] {text}")
@@ -98,8 +96,6 @@ class RaftNode:
                 "port": self.address.port,
             }
             response = self.__send_request(request, "heartbeat", follower_addr)
-
-        return response
 
     # Client RPCs 
     def execute(self, json_request: str) -> "json":

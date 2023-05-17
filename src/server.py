@@ -18,7 +18,9 @@ def start_serving(addr: Address, contact_node_addr: Address):
             addr = Address(request["ip"], int(request["port"]))
             
             print(f"Applying membership for {addr.ip}:{addr.port}")
+            server.instance.log.append(f"Applying membership for {addr.ip}:{addr.port}")
             server.instance.cluster_addr_list.append(addr)
+
             return json.dumps({
                 "status": "success",
                 "log":    server.instance.log,
@@ -31,7 +33,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
             addr = Address(request["ip"], int(request["port"]))
             
             print(f"Heartbeat from {addr.ip}:{addr.port}")
-            server.instance.log.append(request)
+            
             return json.dumps({
                 "heartbeat_response": "ack",
                 "log":                server.instance.log,
