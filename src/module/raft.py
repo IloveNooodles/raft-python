@@ -42,7 +42,7 @@ class RaftNode:
         
         # Election stuff
         self.election_term:       int               = 0
-        self.election_timeout:    int               = RaftNode.ELECTION_TIMEOUT_MIN + random() 
+        self.election_timeout:    int               = time.time() + RaftNode.ELECTION_TIMEOUT_MIN + random() 
         self.voted_for:           int               = -1
 
         self.cluster_addr_list:   List[Address]     = []
@@ -89,7 +89,6 @@ class RaftNode:
         self.timeout_thread.start()
     
     async def __on_election_timeout(self):
-
         # Check if role is not Leader
         if self.type == RaftNode.NodeType.LEADER:
             return
@@ -122,15 +121,15 @@ class RaftNode:
         }
 
         while response["status"] != "success":
+            print(f"Applying membership for {self.address.ip}:{self.address.port}")
             redirected_addr = Address(response["address"]["ip"], response["address"]["port"])
             response        = self.__send_request(self.address, "apply_membership", redirected_addr)
         
         self.log.append(response["log"])
         self.cluster_addr_list   = response["cluster_addr_list"]
         self.cluster_leader_addr = redirected_addr
-        self.__broadcast_cluster_addr_list()
 
-    def __broadcast_cluster_addr_list(self):
+    def __broadcast_cluster_addr_list(self, except_addr):
         """
         Broadcast cluster address list to all nodes
         """
@@ -139,7 +138,7 @@ class RaftNode:
         }
         for addr in self.cluster_addr_list:
             addr = Address(addr["ip"], addr["port"])
-            if addr == self.address or addr ==  self.cluster_leader_addr:
+            if addr == self.cluster_leader_addr or addr ==  except_addr:
                 continue
             self.__send_request(request, "update_cluster_addr_list", addr)
 
