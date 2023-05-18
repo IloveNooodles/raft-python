@@ -80,9 +80,9 @@ class RaftNode:
 
     def __set_election_timeout(self, timeout=None):
         if timeout:
-          self.election_timeout = timeout
+            self.election_timeout = timeout
         else:
-          self.election_timeout = time.time() + RaftNode.ELECTION_TIMEOUT_MIN + random()    
+            self.election_timeout = time.time() + RaftNode.ELECTION_TIMEOUT_MIN + random()    
     
     def __listen_timeout(self):
         self.timeout_thread = Thread(target=asyncio.run,args=[self.__on_election_timeout()])
@@ -96,11 +96,11 @@ class RaftNode:
         
         # If timeout then start election
         if time.time() > self.election_timeout:
-          self.__print_log("No heartbeat found")
-          self.type = RaftNode.NodeType.CANDIDATE
-          self.__print_log("Switching to candidate")
-          self.election_term += 1
-          self.__start_election()
+            self.__print_log("No heartbeat found")
+            self.type = RaftNode.NodeType.CANDIDATE
+            self.__print_log("Switching to candidate")
+            self.election_term += 1
+            self.__start_election()
     
     def __start_election(self):
         pass
@@ -128,6 +128,20 @@ class RaftNode:
         self.log.append(response["log"])
         self.cluster_addr_list   = response["cluster_addr_list"]
         self.cluster_leader_addr = redirected_addr
+        self.__broadcast_cluster_addr_list()
+
+    def __broadcast_cluster_addr_list(self):
+        """
+        Broadcast cluster address list to all nodes
+        """
+        request = {
+            "cluster_addr_list": self.cluster_addr_list,
+        }
+        for addr in self.cluster_addr_list:
+            addr = Address(addr["ip"], addr["port"])
+            if addr == self.address or addr ==  self.cluster_leader_addr:
+                continue
+            self.__send_request(request, "update_cluster_addr_list", addr)
 
     def __send_request(self, request: Any, rpc_name: str, addr: Address) -> "json":
         """ 
@@ -146,10 +160,10 @@ class RaftNode:
             "address":            self.address,
         }
         try:
-          response     = json.loads(rpc_function(json_request))
-          self.__print_log(response)
+            response     = json.loads(rpc_function(json_request))
+            self.__print_log(response)
         except:
-          self.__print_log(f"[{addr}] Is not replying (nack)")
+            self.__print_log(f"[{addr}] Is not replying (nack)")
         
         return response
 

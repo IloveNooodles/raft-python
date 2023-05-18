@@ -67,12 +67,36 @@ def start_serving(addr: Address, contact_node_addr: Address):
                     "log": server.instance.log,
                 }
             )
+        
+        @server.register_function
+        def update_cluster_addr_list(request):
+            """ 
+            this function will get called via RPC call
+            broadcast cluster address list to all nodes
+            each time a new node is applying membership
+            
+            Should be the follower that receives this
+            """
+            request = json.loads(request)
+            addr = Address(request["ip"], int(request["port"]))
+
+            print(f"[FOLLOWER] Update cluster addr list from {addr.ip}:{addr.port}")
+
+            server.instance.cluster_addr_list = request["cluster_addr_list"]
+
+            return json.dumps(
+                {
+                    "status": "success",
+                    "log": server.instance.log,
+                    "cluster_addr_list": server.instance.cluster_addr_list,
+                }
+            )
 
         try:
-          server.serve_forever()
+            server.serve_forever()
         except KeyboardInterrupt:
-          server.shutdown()
-          os.kill(os.getpid(), signal.SIGTERM)
+            server.shutdown()
+            os.kill(os.getpid(), signal.SIGTERM)
 
         # TODO add AppendEntriesRPC, RequestVoteRPC
         
