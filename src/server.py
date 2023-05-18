@@ -59,6 +59,8 @@ def start_serving(addr: Address, contact_node_addr: Address):
             request = json.loads(request)
             addr = Address(request["ip"], int(request["port"]))
 
+            # Update election timeout when receive heartbeat
+            server.instance._set_election_timeout()
             print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
 
             return json.dumps(
