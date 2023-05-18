@@ -43,6 +43,7 @@ class RaftNode:
         # Election stuff
         self.election_term:       int               = 0
         self.election_timeout:    int               = time.time() + RaftNode.ELECTION_TIMEOUT_MIN + random() 
+        self.election_interval:   int               = RaftNode.ELECTION_TIMEOUT_MIN + random()
         self.voted_for:           int               = -1
 
         self.cluster_addr_list:   List[Address]     = []
@@ -51,8 +52,8 @@ class RaftNode:
             self.cluster_addr_list.append(self.address)
             self.__initialize_as_leader()
         else:
-            self.__try_to_apply_membership(contact_addr)
             self.__listen_timeout()
+            self.__try_to_apply_membership(contact_addr)
 
     # Internal Raft Node methods
     def __print_log(self, text: str):
@@ -83,24 +84,39 @@ class RaftNode:
         if timeout:
             self.election_timeout = timeout
         else:
-            self.election_timeout = time.time() + RaftNode.ELECTION_TIMEOUT_MIN + random()    
+            self.election_timeout = time.time() + RaftNode.ELECTION_TIMEOUT_MIN + random()  
+            self.election_interval = RaftNode.ELECTION_TIMEOUT_MIN + random()  
     
     def __listen_timeout(self):
-        self.timeout_thread = Thread(target=asyncio.run,args=[self.__on_election_timeout()])
+        self.timeout_thread = Thread(target=asyncio.run,args=[self.__on_timeout()])
         self.timeout_thread.start()
     
-    async def __on_election_timeout(self):
-        # Check if role is not Leader
-        if self.type == RaftNode.NodeType.LEADER:
-            return
-        
-        # If timeout then start election
-        if time.time() > self.election_timeout:
-            self.__print_log("No heartbeat found")
-            self.type = RaftNode.NodeType.CANDIDATE
-            self.__print_log("Switching to candidate")
+    async def __on_timeout(self):
+        """ 
+        This async function will run if follower not hearing heartbeat from leader
+
+        1. Follower will swtich to candidate
+        2. Candidate will up his term
+        3. Start the election 
+        """
+        while True:
+          is_candidate =  self.type == RaftNode.NodeType.CANDIDATE
+          is_follower = self.type == RaftNode.NodeType.FOLLOWER
+          is_timeout = time.time() > self.election_timeout
+          if (is_candidate or is_follower) and is_timeout:
+
+            if is_follower:
+              self.__print_log("No heartbeat found from leader")
+              self.type = RaftNode.NodeType.CANDIDATE
+              self.__print_log("Switching to candidate")
+
             self.election_term += 1
+            self.__print_log(f"Current election term [{self.election_term}]")
             self.__start_election()
+            break
+
+          await asyncio.sleep(self.election_interval)
+            
     
     def __start_election(self):
         pass
@@ -122,10 +138,11 @@ class RaftNode:
         }
 
         redirected_addr = Address(response["address"]["ip"], response["address"]["port"])
-        while response["status"] != "success":
-            print(f"Applying membership for {self.address.ip}:{self.address.port}")
-            response        = self.__send_request(self.address, "apply_membership", redirected_addr)
-        
+        # Retry if not success
+        while response.get("status") != "success":
+            self.__print_log(f"Applying membership for {self.address.ip}:{self.address.port}")
+            response = self.__send_request(self.address, "apply_membership", redirected_addr)
+              
         self.log.append(response["log"])
         self.cluster_addr_list   = response["cluster_addr_list"]
         self.cluster_leader_addr = redirected_addr
@@ -162,8 +179,11 @@ class RaftNode:
         try:
             response     = json.loads(rpc_function(json_request))
             self.__print_log(response)
+        except KeyboardInterrupt:
+            exit(1)
         except:
             self.__print_log(f"[{addr}] Is not replying (nack)")
+            
         
         return response
 
@@ -177,7 +197,7 @@ class RaftNode:
             "address":            self.address,
         }
 
-        while response["heartbeat_response"] != "ack":
+        while response.get("heartbeat_response") != "ack":
             request = {
                 "ip":   self.address.ip,
                 "port": self.address.port,

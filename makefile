@@ -1,6 +1,7 @@
 .PHONY: client server
 
 SERVER_PORT=8000
+PORT=8001
 CLIENT_PORT=10000
 
 client-local:
