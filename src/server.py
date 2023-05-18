@@ -2,6 +2,7 @@ import json
 import os
 import signal
 import sys
+import asyncio
 from xmlrpc.server import SimpleXMLRPCServer
 
 from module.raft import RaftNode
@@ -37,8 +38,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
             request = json.loads(request)
             addr = Address(request["ip"], int(request["port"]))
 
-            print(f"Applying membership for {addr.ip}:{addr.port}")
-            server.instance.log.append(f"Applying membership for {addr.ip}:{addr.port}")
+            server.instance.log.append(f"Applying membership from {addr.ip}:{addr.port}")
             server.instance.cluster_addr_list.append(addr)
             
             return json.dumps(
@@ -78,11 +78,14 @@ def start_serving(addr: Address, contact_node_addr: Address):
             Should be the follower that receives this
             """
             request = json.loads(request)
-            addr = Address(request["ip"], int(request["port"]))
 
-            print(f"[FOLLOWER] Update cluster addr list from {addr.ip}:{addr.port}")
+            print(f"[FOLLOWER] Update cluster addr list")
 
-            server.instance.cluster_addr_list = request["cluster_addr_list"]
+            cluster_addr_list = []
+            for addr in request["cluster_addr_list"]:
+                cluster_addr_list.append(Address(addr["ip"], int(addr["port"])))
+
+            server.instance.cluster_addr_list = cluster_addr_list
 
             return json.dumps(
                 {
