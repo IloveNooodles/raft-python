@@ -39,6 +39,7 @@ class RaftNode:
 
     def __init__(self, application : Any, addr: Address, contact_addr: Address = None):
         socket.setdefaulttimeout(RaftNode.RPC_TIMEOUT)
+        self.leader_id                              = -1
         self.address:             Address           = addr
         self.type:                RaftNode.NodeType = RaftNode.NodeType.FOLLOWER
         self.log:                 List[str, str]    = []
@@ -51,11 +52,12 @@ class RaftNode:
         self.voted_for:           int               = -1
         
         self.commit_index:        int               = 0
-        self.next_index:          List[int]         = []
-        self.match_index:         List[int]         = []
         self.last_applied:        int               = 0
         
-
+        # Reinit after election
+        self.match_index:         List[int]         = []
+        self.next_index:          List[int]         = []
+        
         self.cluster_addr_list:   List[Address]     = []
         self.cluster_leader_addr: Address           = None
         
