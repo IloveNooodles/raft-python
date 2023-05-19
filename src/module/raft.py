@@ -40,7 +40,7 @@ class RaftNode:
         self.leader_id                              = -1
         self.address:             Address           = addr
         self.type:                RaftNode.NodeType = RaftNode.NodeType.FOLLOWER
-        self.log:                 List[str, str]    = []
+        self.log:                 List[int, str, str]    = []  # [term, command, args]
         self.entry:               List[str, str]    = []
         self.app:                 Any               = application
         
@@ -212,7 +212,7 @@ class RaftNode:
             append_entry = AppendEntry.Request(
                 self.election_term,
                 self.cluster_leader_addr,
-                self.commit_index,
+                len(self.log) - 1,
                 self.election_term,
                 self.entry,
                 self.commit_index,

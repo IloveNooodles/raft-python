@@ -62,14 +62,10 @@ class AppendEntry:
                     "leader_commit_index": self.leader_commit_index}
 
     class Response:
-        def __init__(self, term, success, conflict_index, conflict_term) -> None:
+        def __init__(self, term, success) -> None:
             self.term               : int   = term
             self.success            : bool  = success
-            self.conflict_index     : int   = conflict_index
-            self.conflict_term      : int   = conflict_term
 
         def toDict(self) -> dict:
             return {"term": self.term, 
-                    "success": self.success, 
-                    "conflict_index": self.conflict_index, 
-                    "conflict_term": self.conflict_term}
+                    "success": self.success,}

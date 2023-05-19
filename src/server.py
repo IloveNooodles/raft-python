@@ -59,6 +59,20 @@ def start_serving(addr: Address, contact_node_addr: Address):
             request = json.loads(request)
             addr = Address(request["leader_addr"]["ip"], int(request["leader_addr"]["port"]))
 
+            response = AppendEntry.Response(
+                server.instance.election_term,
+                False,
+            )
+
+            if (request["term"] > server.instance.election_term):
+                return response.toDict()
+            
+            if (len(server.instance.log) - 1 != request["prev_log_index"]):
+                return response.toDict()
+            
+            if (server.instance.log["prev_log_index"][0] != request["prev_log_term"]):
+                server.instance.log = server.instance.log[:request["prev_log_index"]]
+
             if (len(request["entries"]) != 0 ):
                 entry = request["entries"]
                 server.instance.log.append(entry)
@@ -66,15 +80,11 @@ def start_serving(addr: Address, contact_node_addr: Address):
             else:
                 print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
 
+            if (request["leader_commit_index"] > server.instance.commit_index):
+                server.instance.commit_index = min(request["leader_commit_index"], len(server.instance.log) - 1)
+                
             # Update election timeout when receive heartbeat
             server.instance._set_election_timeout()
-
-            response = AppendEntry.Response(
-                server.instance.election_term,
-                True,
-                -1,
-                -1,
-            )
 
             return json.dumps(response.toDict())
         
@@ -116,7 +126,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
 
             if (server.instance.type == RaftNode.NodeType.LEADER):
                 print(f"[LEADER] Execute from client {request}")
-                entry = [request["command"], request["args"]]
+                entry = [server.instance.election_term, request["command"], request["args"]]
                 server.instance.log.append(entry)
                 server.instance.entry = entry
 
