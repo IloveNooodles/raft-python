@@ -41,6 +41,7 @@ class RaftNode:
         self.address:             Address           = addr
         self.type:                RaftNode.NodeType = RaftNode.NodeType.FOLLOWER
         self.log:                 List[str, str]    = []
+        self.entry:               List[str, str]    = []
         self.app:                 Any               = application
         
         # Election stuff
@@ -84,7 +85,7 @@ class RaftNode:
     async def __leader_heartbeat(self):
         while True:
             self.__print_log("Sending heartbeat...")
-            
+
             for addr in self.cluster_addr_list:
                 if addr == self.address:
                     continue
@@ -213,7 +214,7 @@ class RaftNode:
                 self.cluster_leader_addr,
                 self.commit_index,
                 self.election_term,
-                [],
+                self.entry,
                 self.commit_index,
             )
             request = append_entry.toDict()

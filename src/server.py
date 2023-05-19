@@ -39,7 +39,6 @@ def start_serving(addr: Address, contact_node_addr: Address):
             request = json.loads(request)
             addr = Address(request["ip"], int(request["port"]))
 
-            server.instance.log.append(f"Applying membership from {addr.ip}:{addr.port}")
             server.instance.cluster_addr_list.append(addr)
             
             return json.dumps(
@@ -60,9 +59,15 @@ def start_serving(addr: Address, contact_node_addr: Address):
             request = json.loads(request)
             addr = Address(request["leader_addr"]["ip"], int(request["leader_addr"]["port"]))
 
+            if (len(request["entries"]) != 0 ):
+                entry = request["entries"]
+                server.instance.log.append(entry)
+                print(f"[FOLLOWER] Append entries from {addr.ip}:{addr.port}: {entry}")
+            else:
+                print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
+
             # Update election timeout when receive heartbeat
             server.instance._set_election_timeout()
-            print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
 
             response = AppendEntry.Response(
                 server.instance.election_term,
@@ -111,6 +116,10 @@ def start_serving(addr: Address, contact_node_addr: Address):
 
             if (server.instance.type == RaftNode.NodeType.LEADER):
                 print(f"[LEADER] Execute from client {request}")
+                entry = [request["command"], request["args"]]
+                server.instance.log.append(entry)
+                server.instance.entry = entry
+
                 # TODO implement execute command
                 return json.dumps(
                     {
