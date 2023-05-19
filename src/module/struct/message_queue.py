@@ -1,6 +1,5 @@
 from module.struct.address import Address
 
-
 class MessageQueue:
     def __init__(self):
         self.queue = []

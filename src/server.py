@@ -8,6 +8,7 @@ from xmlrpc.server import SimpleXMLRPCServer
 from module.raft import RaftNode
 from module.struct.address import Address
 from module.struct.message_queue import MessageQueue
+from module.struct.append_entries import AppendEntry
 
 
 def start_serving(addr: Address, contact_node_addr: Address):
@@ -57,18 +58,20 @@ def start_serving(addr: Address, contact_node_addr: Address):
             Should be the follower that receives this
             """
             request = json.loads(request)
-            addr = Address(request["ip"], int(request["port"]))
+            addr = Address(request["leader_addr"]["ip"], int(request["leader_addr"]["port"]))
 
             # Update election timeout when receive heartbeat
             server.instance._set_election_timeout()
             print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
 
-            return json.dumps(
-                {
-                    "heartbeat_response": "ack",
-                    "log": server.instance.log,
-                }
+            response = AppendEntry.Response(
+                server.instance.election_term,
+                True,
+                -1,
+                -1,
             )
+
+            return json.dumps(response.toDict())
         
         @server.register_function
         def update_cluster_addr_list(request):

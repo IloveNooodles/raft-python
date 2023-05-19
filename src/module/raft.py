@@ -2,6 +2,7 @@ import asyncio
 import json
 import socket
 import time
+import traceback
 from enum import Enum
 from random import random
 from threading import Thread
@@ -9,11 +10,8 @@ from typing import Any, List
 from xmlrpc.client import ServerProxy
 
 from module.struct.address import Address
-from module.struct.append_entries import (AppendEntryRequest,
-                                          AppendEntryResponse)
-from module.struct.message_queue import MessageQueue
-from module.struct.request_vote import RequestVoteRequest, RequestVoteResponse
-
+from module.struct.append_entries import AppendEntry
+from module.struct.request_vote import RequestVote
 
 class RaftNode:
     """ 
@@ -60,8 +58,6 @@ class RaftNode:
         
         self.cluster_addr_list:   List[Address]     = []
         self.cluster_leader_addr: Address           = None
-        
-        
         
         if contact_addr is None:
             self.cluster_addr_list.append(self.address)
@@ -115,23 +111,22 @@ class RaftNode:
         3. Start the election 
         """
         while True:
-          is_candidate =  self.type == RaftNode.NodeType.CANDIDATE
-          is_follower = self.type == RaftNode.NodeType.FOLLOWER
-          is_timeout = time.time() > self.election_timeout
-          if (is_candidate or is_follower) and is_timeout:
+            is_candidate =  self.type == RaftNode.NodeType.CANDIDATE
+            is_follower = self.type == RaftNode.NodeType.FOLLOWER
+            is_timeout = time.time() > self.election_timeout
+            if (is_candidate or is_follower) and is_timeout:
 
-            if is_follower:
-              self.__print_log("No heartbeat found from leader")
-              self.type = RaftNode.NodeType.CANDIDATE
-              self.__print_log("Switching to candidate")
+                if is_follower:
+                    self.__print_log("No heartbeat found from leader")
+                    self.type = RaftNode.NodeType.CANDIDATE
+                    self.__print_log("Switching to candidate")
 
-            self.election_term += 1
-            self.__print_log(f"Current election term [{self.election_term}]")
-            self.__start_election()
-            break
+                self.election_term += 1
+                self.__print_log(f"Current election term [{self.election_term}]")
+                self.__start_election()
+                break
 
-          await asyncio.sleep(self.election_interval)
-            
+            await asyncio.sleep(self.election_interval)
     
     def __start_election(self):
         pass
@@ -157,7 +152,7 @@ class RaftNode:
         while response.get("status") != "success":
             self.__print_log(f"Applying membership for {self.address.ip}:{self.address.port}")
             response = self.__send_request(self.address, "apply_membership", redirected_addr)
-              
+
         self.log.append(response["log"])
         self.cluster_addr_list   = response["cluster_addr_list"]
         self.cluster_leader_addr = redirected_addr
@@ -188,8 +183,7 @@ class RaftNode:
         json_request = json.dumps(request)
         rpc_function = getattr(node, rpc_name)
         response = {
-            "heartbeat_response": "nack",
-            "address":            self.address,
+            "success": False,
         }
         try:
             response     = json.loads(rpc_function(json_request))
@@ -197,6 +191,7 @@ class RaftNode:
         except KeyboardInterrupt:
             exit(1)
         except:
+            traceback.print_exc()
             self.__print_log(f"[{addr}] Is not replying (nack)")
         
         return response
@@ -207,15 +202,19 @@ class RaftNode:
         This function will send heartbeat to follower address
         """
         response = {
-            "heartbeat_response": "nack",
-            "address":            self.address,
+            "success": False,
         }
 
-        while response.get("heartbeat_response") != "ack":
-            request = {
-                "ip":   self.address.ip,
-                "port": self.address.port,
-            }
+        while response.get("success") != True:
+            append_entry = AppendEntry.Request(
+                self.election_term,
+                self.cluster_leader_addr,
+                self.commit_index,
+                self.election_term,
+                [],
+                self.commit_index,
+            )
+            request = append_entry.toDict()
             response = self.__send_request(request, "heartbeat", follower_addr)
 
     # Client RPCs 
