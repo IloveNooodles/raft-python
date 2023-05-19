@@ -22,9 +22,9 @@ def start_serving(addr: Address, contact_node_addr: Address):
     """
     print(f"Starting Raft Server at {addr.ip}:{addr.port}")
 
-    with SimpleXMLRPCServer((addr.ip, addr.port)) as server:
+    with SimpleXMLRPCServer((addr.ip, addr.port), logRequests=False) as server:
         server.register_introspection_functions()
-        server.register_instance(RaftNode(MessageQueue(), addr, contact_node_addr))
+        server.register_instance(RaftNode(MessageQueue(), addr, contact_node_addr),)
 
         @server.register_function
         def apply_membership(request):
@@ -59,6 +59,8 @@ def start_serving(addr: Address, contact_node_addr: Address):
             request = json.loads(request)
             addr = Address(request["ip"], int(request["port"]))
 
+            # Update election timeout when receive heartbeat
+            server.instance._set_election_timeout()
             print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
 
             return json.dumps(

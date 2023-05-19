@@ -93,7 +93,7 @@ class RaftNode:
             self.__broadcast_cluster_addr_list()
             await asyncio.sleep(RaftNode.HEARTBEAT_INTERVAL)
 
-    def __set_election_timeout(self, timeout=None):
+    def _set_election_timeout(self, timeout=None):
         if timeout:
             self.election_timeout = timeout
         else:
@@ -196,7 +196,6 @@ class RaftNode:
             exit(1)
         except:
             self.__print_log(f"[{addr}] Is not replying (nack)")
-            
         
         return response
 
@@ -216,9 +215,6 @@ class RaftNode:
                 "port": self.address.port,
             }
             response = self.__send_request(request, "heartbeat", follower_addr)
-        
-        # If response is success then update the timeout
-        self.__set_election_timeout()
 
     # Client RPCs 
     def execute(self, json_request: str) -> "json":
