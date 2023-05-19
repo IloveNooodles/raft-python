@@ -68,4 +68,4 @@ class AppendEntry:
 
         def toDict(self) -> dict:
             return {"term": self.term, 
-                    "success": self.success,}
+                    "success": self.success}

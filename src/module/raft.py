@@ -6,7 +6,7 @@ import traceback
 from enum import Enum
 from random import random
 from threading import Thread
-from typing import Any, List
+from typing import Any, List, Dict
 from xmlrpc.client import ServerProxy
 
 from module.struct.address import Address
@@ -54,8 +54,8 @@ class RaftNode:
         self.last_applied:        int               = 0
         
         # Reinit after election
-        self.match_index:         List[int]         = []
-        self.next_index:          List[int]         = []
+        self.match_index:         Dict[str, int] = {}
+        self.next_index:          Dict[str, int] = {}
         
         self.cluster_addr_list:   List[Address]     = []
         self.cluster_leader_addr: Address           = None
@@ -156,7 +156,7 @@ class RaftNode:
             self.__print_log(f"Applying membership for {self.address.ip}:{self.address.port}")
             response = self.__send_request(self.address, "apply_membership", redirected_addr)
 
-        self.log.append(response["log"])
+        self.log = response["log"]
         self.cluster_addr_list   = response["cluster_addr_list"]
         self.cluster_leader_addr = redirected_addr
 
@@ -204,21 +204,17 @@ class RaftNode:
         """ 
         This function will send heartbeat to follower address
         """
-        response = {
-            "success": False,
-        }
 
-        while response.get("success") != True:
-            append_entry = AppendEntry.Request(
-                self.election_term,
-                self.cluster_leader_addr,
-                len(self.log) - 1,
-                self.election_term,
-                self.entry,
-                self.commit_index,
-            )
-            request = append_entry.toDict()
-            response = self.__send_request(request, "heartbeat", follower_addr)
+        append_entry = AppendEntry.Request(
+            self.election_term,
+            self.cluster_leader_addr,
+            len(self.log) - 1 if len(self.log) > 0 else 0,
+            self.log["term"][-1] if len(self.log) > 0 else 0,
+            self.entry,
+            self.commit_index,
+        )
+        request = append_entry.toDict()
+        response = self.__send_request(request, "heartbeat", follower_addr)
 
     # Client RPCs 
     def execute(self, json_request: str) -> "json":

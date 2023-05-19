@@ -40,6 +40,8 @@ def start_serving(addr: Address, contact_node_addr: Address):
             addr = Address(request["ip"], int(request["port"]))
 
             server.instance.cluster_addr_list.append(addr)
+            server.instance.match_index[str(addr)] = 0
+            server.instance.next_index[str(addr)] = len(server.instance.log)
             
             return json.dumps(
                 {
@@ -57,6 +59,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
             Should be the follower that receives this
             """
             request = json.loads(request)
+            print(request)
             addr = Address(request["leader_addr"]["ip"], int(request["leader_addr"]["port"]))
 
             response = AppendEntry.Response(
@@ -65,13 +68,14 @@ def start_serving(addr: Address, contact_node_addr: Address):
             )
 
             if (request["term"] > server.instance.election_term):
-                return response.toDict()
+                return json.dumps(response.toDict())
             
-            if (len(server.instance.log) - 1 != request["prev_log_index"]):
-                return response.toDict()
+            if (len(server.instance.log) - 1 if len(server.instance.log) > 0 else 0 != request["prev_log_index"]):
+                return json.dumps(response.toDict())
             
-            if (server.instance.log["prev_log_index"][0] != request["prev_log_term"]):
-                server.instance.log = server.instance.log[:request["prev_log_index"]]
+            if (len(server.instance.log) > 0):
+                if (server.instance.log[request["prev_log_index"]][0] != request["prev_log_term"]):
+                    server.instance.log = server.instance.log[:request["prev_log_index"]]
 
             if (len(request["entries"]) != 0 ):
                 entry = request["entries"]
@@ -82,7 +86,12 @@ def start_serving(addr: Address, contact_node_addr: Address):
 
             if (request["leader_commit_index"] > server.instance.commit_index):
                 server.instance.commit_index = min(request["leader_commit_index"], len(server.instance.log) - 1)
-                
+
+            response = AppendEntry.Response(
+                server.instance.election_term,
+                True,
+            )
+
             # Update election timeout when receive heartbeat
             server.instance._set_election_timeout()
 
