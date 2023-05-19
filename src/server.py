@@ -59,7 +59,6 @@ def start_serving(addr: Address, contact_node_addr: Address):
             Should be the follower that receives this
             """
             request = json.loads(request)
-            print(request)
             addr = Address(request["leader_addr"]["ip"], int(request["leader_addr"]["port"]))
 
             response = AppendEntry.Response(
@@ -68,9 +67,13 @@ def start_serving(addr: Address, contact_node_addr: Address):
             )
 
             if (request["term"] > server.instance.election_term):
+                print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
+                server.instance._set_election_timeout()
                 return json.dumps(response.toDict())
             
             if (len(server.instance.log) - 1 if len(server.instance.log) > 0 else 0 != request["prev_log_index"]):
+                print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
+                server.instance._set_election_timeout()
                 return json.dumps(response.toDict())
             
             if (len(server.instance.log) > 0):
@@ -94,7 +97,6 @@ def start_serving(addr: Address, contact_node_addr: Address):
 
             # Update election timeout when receive heartbeat
             server.instance._set_election_timeout()
-
             return json.dumps(response.toDict())
         
         @server.register_function

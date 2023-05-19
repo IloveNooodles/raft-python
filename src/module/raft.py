@@ -91,7 +91,7 @@ class RaftNode:
                     continue
                 self.heartbeat(addr)
 
-            self.__broadcast_cluster_addr_list()
+            # self.__broadcast_cluster_addr_list()
             await asyncio.sleep(RaftNode.HEARTBEAT_INTERVAL)
 
     def _set_election_timeout(self, timeout=None):
@@ -204,17 +204,33 @@ class RaftNode:
         """ 
         This function will send heartbeat to follower address
         """
+        last_log_index = len(self.log) - 1 if len(self.log) > 0 else 0
 
         append_entry = AppendEntry.Request(
             self.election_term,
             self.cluster_leader_addr,
-            len(self.log) - 1 if len(self.log) > 0 else 0,
-            self.log["term"][-1] if len(self.log) > 0 else 0,
+            last_log_index,
+            self.log[-1][0] if len(self.log) > 0 else 0,
             self.entry,
             self.commit_index,
         )
-        request = append_entry.toDict()
-        response = self.__send_request(request, "heartbeat", follower_addr)
+
+        if (last_log_index >= self.next_index[str(follower_addr)]):
+            append_entry.entries = self.log[self.next_index[str(follower_addr)]:]
+            self.__print_log(f"Sending entries from {self.next_index[str(follower_addr)]} to {last_log_index} to {follower_addr}")
+        
+            request = append_entry.toDict()
+            response = self.__send_request(request, "heartbeat", follower_addr)
+
+            if (response["success"] == False):
+                self.next_index[str(follower_addr)] -= 1
+            else:
+                self.match_index[str(follower_addr)] = last_log_index
+                self.next_index[str(follower_addr)] = last_log_index
+
+        else:
+            request = append_entry.toDict()
+            response = self.__send_request(request, "heartbeat", follower_addr)
 
     # Client RPCs 
     def execute(self, json_request: str) -> "json":
