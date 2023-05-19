@@ -9,12 +9,16 @@ from typing import Any, List
 from xmlrpc.client import ServerProxy
 
 from module.struct.address import Address
+from module.struct.append_entries import (AppendEntryRequest,
+                                          AppendEntryResponse)
 from module.struct.message_queue import MessageQueue
+from module.struct.request_vote import RequestVoteRequest, RequestVoteResponse
 
 
 class RaftNode:
     """ 
     Implementation of Raft Node
+    https://raft.github.io/raft.pdf
     
     1. Election time is mostly between T and 2T (150ms - 300ms)
     2. If server is follower and not receiveing anything from client, upgrade to candidate
@@ -45,9 +49,18 @@ class RaftNode:
         self.election_timeout:    int               = time.time() + RaftNode.ELECTION_TIMEOUT_MIN + random() 
         self.election_interval:   int               = RaftNode.ELECTION_TIMEOUT_MIN + random()
         self.voted_for:           int               = -1
+        
+        self.commit_index:        int               = 0
+        self.next_index:          List[int]         = []
+        self.match_index:         List[int]         = []
+        self.last_applied:        int               = 0
+        
 
         self.cluster_addr_list:   List[Address]     = []
         self.cluster_leader_addr: Address           = None
+        
+        
+        
         if contact_addr is None:
             self.cluster_addr_list.append(self.address)
             self.__initialize_as_leader()
