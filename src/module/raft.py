@@ -84,10 +84,12 @@ class RaftNode:
     async def __leader_heartbeat(self):
         while True:
             self.__print_log("Sending heartbeat...")
+            
             for addr in self.cluster_addr_list:
                 if addr == self.address:
                     continue
                 self.heartbeat(addr)
+
             self.__broadcast_cluster_addr_list()
             await asyncio.sleep(RaftNode.HEARTBEAT_INTERVAL)
 

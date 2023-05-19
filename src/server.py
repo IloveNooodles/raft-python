@@ -99,6 +99,44 @@ def start_serving(addr: Address, contact_node_addr: Address):
                     "cluster_addr_list": server.instance.cluster_addr_list,
                 }
             )
+        
+        @server.register_function
+        def execute_from_client(request):
+            """
+            Leader will execute the command if majority agrees
+            If follower receives this then it will redirect to leader
+            """
+
+            request = json.loads(request)
+
+            if (server.instance.type == RaftNode.NodeType.LEADER):
+                print(f"[LEADER] Execute from client {request}")
+                # TODO implement execute command
+                return json.dumps(
+                    {
+                        "status": "success",
+                    }
+                )
+            
+            elif (server.instance.type == RaftNode.NodeType.FOLLOWER):
+                print(f"[FOLLOWER] Redirecting to Leader")
+
+                response = {
+                    "status": "redirected",
+                    "address": {
+                        "ip":   server.instance.cluster_leader_addr.ip,
+                        "port": server.instance.cluster_leader_addr.port,
+                    } 
+                }
+
+                return json.dumps(response)
+            else:
+                return json.dumps(
+                    {
+                        "status": "error",
+                        "message": "Not a leader or follower",
+                    }
+                )
 
         try:
             server.serve_forever()
