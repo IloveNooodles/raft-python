@@ -28,6 +28,14 @@ def __send_request(request: Any, rpc_name : str, addr: Address) -> "json":
     
     return response
 
+def menu():
+    print("Available commands")
+    print("1. queue")
+    print("2. dequeue")
+    print("3. request_log")
+    print("4. exit")
+
+
 def start_serving(addr: Address):
     """
     Spin the client server with the given address
@@ -38,6 +46,7 @@ def start_serving(addr: Address):
     print(f"Argument: <ip> <port> <command> <args>")
 
     while True:
+        menu()
         command = input(">> ")
         command = command.split()
         address = Address(command[0], int(command[1]))

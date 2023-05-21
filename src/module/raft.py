@@ -28,12 +28,24 @@ class RaftNode:
     RPC_TIMEOUT          = 0.5
 
     class NodeType(Enum):
+        """ 
+        # LEADER
+        # ? Send Empty append entries (heartbeat) buat prevent timeouts
+        # ? Klo client minta execute, append entry dulu ke diri DISINI STATE MASIH UNCOMMITED. Abis itu coba minta ke semua buat replication
+        # ? cek apakah last log index >= nextIndex untuk setiap follower. Kalo sukses update nextIndex sama matchIndex buat follower. matchIndex ini kek sampe index mana log follower sm log server sama, klo nextIndex itu index kosongnya lah intinya
+        
+        # ? LOG MATCHING GAMING Klo ternyata ada ada network partition, trs ada server yang punya commit index N lebih tinggi dari current commit index, majority response nya ternyata matchIndexnya lebih gededari N, dan term di response N itu sama kaya current Term, update commit index
+
+        # ? 
+        
+        """
         LEADER    = 1
         CANDIDATE = 2
         FOLLOWER  = 3
         
         def __str__(self) -> str:
             return self.name
+            
 
     def __init__(self, application : Any, addr: Address, contact_addr: Address = None):
         socket.setdefaulttimeout(RaftNode.RPC_TIMEOUT)
@@ -104,9 +116,11 @@ class RaftNode:
             if time.time() > self.election_timeout:
                 self.__print_log("Election timeout, start election...")
                 self.__start_election()
+            # ! Ini darimana 0.1?
             await asyncio.sleep(0.1)
 
     async def __leader_heartbeat(self):
+
         while True:
             self.__print_log("Sending heartbeat...")
 
@@ -156,6 +170,13 @@ class RaftNode:
             await asyncio.sleep(self.election_interval)
     
     def __start_election(self):
+        # ? Pas jadi candidate,
+        # ? Vote diri sendiri
+        # ? Reset Election timer
+        # ? Send Request Vote Ke semua server
+        # ? Kalo dapet majority yes, jadi leader trs send append entries ke semuanya.
+        # ? Klo misal dia ternyata discover leader yang punya term lebih gede, balik jadi follower
+        # ? klo stalemate, reelection
         self._set_election_timeout()
         self.voted_for = self.__get_address_index()
         self.__print_log(f"Start election for term [{self.election_term}]")
@@ -304,6 +325,10 @@ class RaftNode:
     def execute(self, json_request: str) -> "json":
         request = json.loads(json_request)
         # TODO : Implement execute
+
+        # ? Kalo commitIndex > lastApplied, increment lastApplied trs commit ?
+
+        # ? Kalo ada request yang punya TERM lebih gede dari term server ini, convert ke follower.
         return response
 
 
