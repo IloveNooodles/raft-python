@@ -14,12 +14,16 @@ def __send_request(request: Any, rpc_name : str, addr: Address) -> "json":
     node         = ServerProxy(f"http://{addr.ip}:{addr.port}")
     json_request = json.dumps(request)
     rpc_function = getattr(node, rpc_name)
+
+    # ? Darimana
     response = {
         "success": False,
     }
+
     try:
         response     = json.loads(rpc_function(json_request))
     except:
+        # ? Harusnya retry
         traceback.print_exc()
     
     return response
@@ -32,12 +36,13 @@ def start_serving(addr: Address):
     """
     print(f"Starting Raft Client at {addr.ip}:{addr.port}")
     print(f"Argument: <ip> <port> <command> <args>")
-    client = ServerProxy(f"http://{addr.ip}:{addr.port}")
 
     while True:
         command = input(">> ")
         command = command.split()
         address = Address(command[0], int(command[1]))
+
+        
         requests = {
             "command": command[2],
             "args": command[3]

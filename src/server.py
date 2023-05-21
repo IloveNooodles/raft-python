@@ -51,7 +51,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 }
             )
 
-        # Harusnya ini append entry tapi kosong
+        # TODO harusnya append entry kosong
         @server.register_function
         def heartbeat(request):
             """ 
@@ -67,23 +67,27 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 False,
             )
 
-            # Leader send heartbeat
-            # Kalo term nya leader lebih gede,
+            # ? Kalo leader term lebih kecil dari term server ini tolak
+  
             if (request["term"] > server.instance.election_term):
                 print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
                 server.instance._set_election_timeout()
                 return json.dumps(response.toDict())
             
-            # 
+            # ? Cek prevLogIndex, kalo di log server ini gak punya entry dari prev log index return false
+
+            # ! Ini masi harus dicek ?
             if (len(server.instance.log) - 1 if len(server.instance.log) > 0 else 0 != request["prev_log_index"]):
                 print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
                 server.instance._set_election_timeout()
                 return json.dumps(response.toDict())
             
+            # ? Kalo index di posisi tersebut udah keisi di server, INTINYA kita ngikutin leader. Leader selalu bener, jadi kita harus rollback semua log yang ada di server 
             if (len(server.instance.log) > 0):
                 if (server.instance.log[request["prev_log_index"]][0] != request["prev_log_term"]):
                     server.instance.log = server.instance.log[:request["prev_log_index"]]
 
+            # ? Append entries yg baru dikirim dr leader ke semua log, klo gak ya heartbeat aja ga usah di append
             if (len(request["entries"]) != 0 ):
                 entry = request["entries"]
                 server.instance.log.append(entry)
@@ -91,6 +95,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
             else:
                 print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
 
+            # ? Kalo leader commit nya lebih gede dari current server commit index, set commit index nya jadi min(leaderCommit, index New Entry)
             if (request["leader_commit_index"] > server.instance.commit_index):
                 server.instance.commit_index = min(request["leader_commit_index"], len(server.instance.log) - 1)
 
@@ -179,6 +184,17 @@ def start_serving(addr: Address, contact_node_addr: Address):
             server.shutdown()
             os.kill(os.getpid(), signal.SIGTERM)
 
+        @server.register_function
+        def request_log(request):
+            """
+            Client will request request_log of the current state
+
+            Must return the current consistent server log
+            """
+
+            request = json.loads(request)
+
+
         # TODO add AppendEntriesRPC, RequestVoteRPC
         
         @server.register_function
@@ -188,6 +204,8 @@ def start_serving(addr: Address, contact_node_addr: Address):
         @server.register_function
         def request_vote(request):
             pass
+        
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
