@@ -206,17 +206,19 @@ def start_serving(addr: Address, contact_node_addr: Address):
             request = json.loads(request)
 
 
-        # TODO add AppendEntriesRPC, RequestVoteRPC
-        
-        @server.register_function
-        def append_entries(request):
-            pass
-        
         @server.register_function
         def request_vote(request):
             """ 
-            This RPC function will handle request vote from candidate
+            Request vote for the election
+
+            Invoked by candidate
             """
+
+            # TODO
+            # ? cek apakah current term server > term, kalo iya return false klo ga true
+
+            # ? cek apakah si server ini udah pernah ngevote buat leader tertentu apa belom. Cek juga log nya klo lognya uptodate baru grant vote, klo ga gasuah di vote
+
             request = RequestVote.Request(**request)
             response = RequestVote.Response(server.instance.election_term, False)
 
