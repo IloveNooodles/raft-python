@@ -198,9 +198,26 @@ class RaftNode:
                 continue
             self.__print_log(f"Requesting vote to {addr.ip}:{addr.port}")
             try:
-                self.__send_request(request, "request_vote", addr)
+                # ? Try to request vote
+                response = self.__send_request(request, "request_vote", addr)
+                print(response)
+                # ? If vote granted, increment vote count
+                if response is not None and response['vote_granted']:
+                    self.__print_log(f"Vote granted from {addr.ip}:{addr.port}")
+                    self.vote_count += 1
+                    # ? If vote count > majority, become leader
+                    if self.vote_count > len(self.cluster_addr_list) // 2:
+                        self.__print_log("Elected as leader")
+                        self.type = RaftNode.NodeType.LEADER
+                        self.__initialize_as_leader()
+                        break
             except TimeoutError:
+                # ? If timeout, continue to next node
                 self.__print_log(f"Request vote to {addr.ip}:{addr.port} timeout")
+                continue
+            except KeyError:
+                # ? If key error, continue to next node
+                self.__print_log(f"Request vote to {addr.ip}:{addr.port} failed")
                 continue
 
         
