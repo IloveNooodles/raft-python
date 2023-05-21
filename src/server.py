@@ -132,6 +132,9 @@ def start_serving(addr: Address, contact_node_addr: Address):
 
             server.instance.cluster_addr_list = cluster_addr_list
 
+            # Update election timeout when receive addr list
+            server.instance._set_election_timeout()
+
             return json.dumps(
                 {
                     "status": "success",

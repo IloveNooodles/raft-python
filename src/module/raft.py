@@ -114,16 +114,6 @@ class RaftNode:
                 return i
         return -1
 
-    async def __start_election_timeout(self):
-        while True:
-            if self.type == RaftNode.NodeType.LEADER:
-                await asyncio.sleep(1)
-                continue
-            if time.time() > self.election_timeout:
-                self.__print_log("Election timeout, start election...")
-                self.__start_election()
-            await asyncio.sleep(self.ELECTION_TIMEOUT_MIN + random())
-
     async def __leader_heartbeat(self):
         while True:
             self.__print_log("Sending heartbeat...")
@@ -133,7 +123,7 @@ class RaftNode:
                     continue
                 self.heartbeat(addr)
 
-            # self.__broadcast_cluster_addr_list()
+            await self.__broadcast_cluster_addr_list()
             await asyncio.sleep(RaftNode.HEARTBEAT_INTERVAL)
 
     def _set_election_timeout(self, timeout=None):
@@ -142,7 +132,7 @@ class RaftNode:
         else:
             random_float = random() 
             self.election_timeout = time.time() + RaftNode.ELECTION_TIMEOUT_MIN + random_float  
-            self.election_interval = RaftNode.ELECTION_TIMEOUT_MIN + random_float  
+            self.election_interval = RaftNode.ELECTION_TIMEOUT_MIN + random_float
     
     def __listen_timeout(self):
         self.timeout_thread = Thread(target=asyncio.run,args=[self.__on_timeout()])
@@ -273,7 +263,7 @@ class RaftNode:
         self.cluster_addr_list   = response["cluster_addr_list"]
         self.cluster_leader_addr = redirected_addr
 
-    def __broadcast_cluster_addr_list(self):
+    async def __broadcast_cluster_addr_list(self):
         """
         Broadcast cluster address list to all nodes
         """
@@ -286,7 +276,7 @@ class RaftNode:
             if addr == self.cluster_leader_addr:
                 continue
             try:
-                self.__send_request(request, "update_cluster_addr_list", addr)
+                await self.__send_request_async(request, "update_cluster_addr_list", addr)
             except TimeoutError:
                 self.__print_log(f"Broadcast cluster address list to {addr.ip}:{addr.port} timeout")
                 continue
@@ -389,7 +379,7 @@ class RaftNode:
         """ 
         This RPC function will handle request vote from candidate
         """
-        print(request)
+        print("Request Vote from", request['candidate_id'])
         request = RequestVote.Request(**request)
         response = RequestVote.Response(self.election_term, False)
 
@@ -407,6 +397,8 @@ class RaftNode:
             # ? Reject vote if candidate term is less than follower term
             self.__print_log(f"Reject vote for candidate {request.candidate_id} for term {request.term}")
 
+        print("Response", response.toDict())
+
         return response.toDict()
 
 
@@ -422,6 +414,11 @@ class RaftNode:
 
 
 # TODO for election:
-# handle vote response & count votes
-# detecting majority
-# change state to leader if majority
+# Todo: handle vote request response & count votes
+# detecting majority (looks like done)
+# change state to leader if majority (looks like done)
+# Todo: broadcast address list to all nodes
+# Todo: make async
+# Todo: Handle case when a candidate fails to get majority votes
+# Todo: handle listen to timeout again after failed election
+# Inti permasalahan sekarang: requestnya gak masuk karena ke block saat dia jadi candidate
