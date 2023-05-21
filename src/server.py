@@ -9,6 +9,7 @@ from module.raft import RaftNode
 from module.struct.address import Address
 from module.struct.message_queue import MessageQueue
 from module.struct.append_entries import AppendEntry
+from module.struct.request_vote import RequestVote
 
 
 def start_serving(addr: Address, contact_node_addr: Address):
@@ -42,6 +43,10 @@ def start_serving(addr: Address, contact_node_addr: Address):
             server.instance.cluster_addr_list.append(addr)
             server.instance.match_index[str(addr)] = 0
             server.instance.next_index[str(addr)] = len(server.instance.log)
+            print(f"[LEADER] New node {addr.ip}:{addr.port} joined the cluster")
+
+            # print(server.instance.cluster_addr_list)
+            # server.instance.__broadcast_cluster_addr_list()
             
             return json.dumps(
                 {
@@ -208,10 +213,22 @@ def start_serving(addr: Address, contact_node_addr: Address):
 
             # ? cek apakah si server ini udah pernah ngevote buat leader tertentu apa belom. Cek juga log nya klo lognya uptodate baru grant vote, klo ga gasuah di vote
 
-        
+            request = RequestVote.Request(**request)
+            response = RequestVote.Response(server.instance.election_term, False)
 
-        
+            # Check if the candidate term is greater than follower term
+            if request.term > server.instance.election_term:
+                if server.instance.voted_for == -1 or server.instance.voted_for == request.candidate_id:
+                    server.instance.__print_log(f"Vote for candidate {request.candidate_id} for term {request.term}")
+                    server.instance.election_term = request.term
+                    server.instance.type = RaftNode.NodeType.FOLLOWER
+                    server.instance.voted_for = request.candidate_id
+                    server.instance._set_election_timeout()
+                    response.vote_granted = True
+            else:
+                server.instance.__print_log(f"Reject vote for candidate {request.candidate_id} for term {request.term}")
 
+            return response.toDict()
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:

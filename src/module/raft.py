@@ -196,7 +196,13 @@ class RaftNode:
             addr = Address(addr['ip'], addr['port'])
             if addr == self.address:
                 continue
-            self.__send_request(request, "request_vote", addr)
+            self.__print_log(f"Requesting vote to {addr.ip}:{addr.port}")
+            try:
+                self.__send_request(request, "request_vote", addr)
+            except TimeoutError:
+                self.__print_log(f"Request vote to {addr.ip}:{addr.port} timeout")
+                continue
+
         
 
     def __try_to_apply_membership(self, contact_addr: Address):
@@ -232,11 +238,16 @@ class RaftNode:
         request = {
             "cluster_addr_list": self.cluster_addr_list,
         }
+        self.__print_log(f"Broadcasting cluster address list to all nodes")
         for addr in self.cluster_addr_list:
             addr = Address(addr["ip"], addr["port"])
             if addr == self.cluster_leader_addr:
                 continue
-            self.__send_request(request, "update_cluster_addr_list", addr)
+            try:
+                self.__send_request(request, "update_cluster_addr_list", addr)
+            except TimeoutError:
+                self.__print_log(f"Broadcast cluster address list to {addr.ip}:{addr.port} timeout")
+                continue
 
     def __send_request(self, request: Any, rpc_name: str, addr: Address) -> "json":
         """ 
@@ -259,7 +270,7 @@ class RaftNode:
         except KeyboardInterrupt:
             exit(1)
         except:
-            traceback.print_exc()
+            # traceback.print_exc()
             self.__print_log(f"[{addr}] Is not replying (nack)")
         
         return response
@@ -303,6 +314,7 @@ class RaftNode:
         """ 
         This RPC function will handle request vote from candidate
         """
+        print(request)
         request = RequestVote.Request(**request)
         response = RequestVote.Response(self.election_term, False)
 
