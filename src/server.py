@@ -53,7 +53,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
 
         # TODO harusnya append entry kosong
         @server.register_function
-        def heartbeat(request):
+        def append_entry(request):
             """ 
             this function will get called via RPC call
             

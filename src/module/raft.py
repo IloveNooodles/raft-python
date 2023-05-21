@@ -265,7 +265,7 @@ class RaftNode:
             self.__print_log(f"Sending entries from {self.next_index[str(follower_addr)]} to {last_log_index} to {follower_addr}")
         
             request = append_entry.toDict()
-            response = self.__send_request(request, "heartbeat", follower_addr)
+            response = self.__send_request(request, "append_entry", follower_addr)
 
             if (response["success"] == False):
                 self.next_index[str(follower_addr)] -= 1
@@ -275,7 +275,7 @@ class RaftNode:
 
         else:
             request = append_entry.toDict()
-            response = self.__send_request(request, "heartbeat", follower_addr)
+            response = self.__send_request(request, "append_entry", follower_addr)
 
 
     def request_vote(self, request: "json") -> "json":
