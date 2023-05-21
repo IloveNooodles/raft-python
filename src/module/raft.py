@@ -83,9 +83,11 @@ class RaftNode:
 
     # Internal Raft Node methods
     def __print_log(self, text: str):
+        # ? Log format : [address] [time] [type] text
         print(f"[{self.address}] [{time.strftime('%H:%M:%S')}] [{self.type}] {text}")
 
     def __initialize_as_leader(self):
+        # ? Initialize as leader node
         self.__print_log("Initialize as leader node...")
         self.cluster_leader_addr = self.address
         self.type                = RaftNode.NodeType.LEADER
@@ -97,12 +99,14 @@ class RaftNode:
         self.heartbeat_thread.start()
     
     def __get_address_index(self):
+        # ? Get index of this address in cluster_addr_list (equivalent to id)
         for i in range(len(self.cluster_addr_list)):
             if Address(self.cluster_addr_list[i]['ip'], self.cluster_addr_list[i]['port']) == self.address:
                 return i
         return -1
     
     def __get_address_index_by_addr(self, addr: Address):
+        # ? Get index of this address in cluster_addr_list
         for i in range(len(self.cluster_addr_list)):
             if Address(self.cluster_addr_list[i]['ip'], self.cluster_addr_list[i]['port']) == addr:
                 return i
@@ -120,7 +124,6 @@ class RaftNode:
             await asyncio.sleep(0.1)
 
     async def __leader_heartbeat(self):
-
         while True:
             self.__print_log("Sending heartbeat...")
 
@@ -174,15 +177,17 @@ class RaftNode:
         # ? Vote diri sendiri
         # ? Reset Election timer
         # ? Send Request Vote Ke semua server
-        # ? Kalo dapet majority yes, jadi leader trs send append entries ke semuanya.
-        # ? Klo misal dia ternyata discover leader yang punya term lebih gede, balik jadi follower
-        # ? klo stalemate, reelection
+
         self._set_election_timeout()
         self.voted_for = self.__get_address_index()
         self.__print_log(f"Start election for term [{self.election_term}]")
 
         self.vote_count = 1
         self.__request_votes()
+
+        # ? Kalo dapet majority yes, jadi leader trs send append entries ke semuanya.
+        # ? Klo misal dia ternyata discover leader yang punya term lebih gede, balik jadi follower
+        # ? klo stalemate, reelection
 
     def __request_votes(self):
         request = {
@@ -335,16 +340,18 @@ class RaftNode:
         request = RequestVote.Request(**request)
         response = RequestVote.Response(self.election_term, False)
 
-        # Check if the candidate term is greater than follower term
+        # ? Check if the candidate term is greater than follower term
         if request.term > self.election_term:
             if self.voted_for == -1 or self.voted_for == request.candidate_id:
                 self.__print_log(f"Vote for candidate {request.candidate_id} for term {request.term}")
                 self.election_term = request.term
+                # ? Set voted for to candidate id, become follower
                 self.type = RaftNode.NodeType.FOLLOWER
                 self.voted_for = request.candidate_id
                 self._set_election_timeout()
                 response.vote_granted = True
         else:
+            # ? Reject vote if candidate term is less than follower term
             self.__print_log(f"Reject vote for candidate {request.candidate_id} for term {request.term}")
 
         return response.toDict()
