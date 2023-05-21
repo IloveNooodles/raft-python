@@ -28,6 +28,44 @@ def start_serving(addr: Address, contact_node_addr: Address):
         server.register_introspection_functions()
         server.register_instance(RaftNode(MessageQueue(), addr, contact_node_addr),)
 
+        def __success_response():
+            response = AppendEntry.Response(
+                server.instance.election_term,
+                True,
+            )
+            return json.dumps(response.toDict())
+        
+        def __fail_response():
+            response = AppendEntry.Response(
+                server.instance.election_term,
+                False,
+            )
+            return json.dumps(response.toDict())
+
+        def __log_replication(request, addr):
+            is_log_invalid = False
+            if (len(server.instance.log) > 0 and request["prev_log_index"] < len(server.instance.log)):
+                if (server.instance.log[request["prev_log_index"]][0] != request["prev_log_term"]):
+                    is_log_invalid = True
+
+            if is_log_invalid:
+                return __fail_response()
+
+        def __commit_log(request, addr):
+            server.instance.commit_index = min(request["leader_commit_index"], len(server.instance.log) - 1)
+            server.instance._set_election_timeout()
+
+            return __success_response()
+
+        def __heartbeat(request, addr):
+            print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
+            if request["term"] >= server.instance.election_term:
+                server.instance.election_term = request["term"]
+                server.instance.type = RaftNode.NodeType.FOLLOWER
+            server.instance._set_election_timeout()
+
+            return __success_response()
+
         @server.register_function
         def apply_membership(request):
             """ 
@@ -67,51 +105,19 @@ def start_serving(addr: Address, contact_node_addr: Address):
             request = json.loads(request)
             addr = Address(request["leader_addr"]["ip"], int(request["leader_addr"]["port"]))
 
-            response = AppendEntry.Response(
-                server.instance.election_term,
-                False,
-            )
-
-            # ? Kalo leader term lebih kecil dari term server ini tolak
-  
-            if (request["term"] > server.instance.election_term):
-                print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
-                server.instance._set_election_timeout()
+            if request["term"] < server.instance.election_term:
+                response = AppendEntry.Response(
+                    server.instance.election_term,
+                    False,
+                )
                 return json.dumps(response.toDict())
-            
-            # ? Cek prevLogIndex, kalo di log server ini gak punya entry dari prev log index return false
 
-            # ! Ini masi harus dicek ?
-            if (len(server.instance.log) - 1 if len(server.instance.log) > 0 else 0 != request["prev_log_index"]):
-                print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
-                server.instance._set_election_timeout()
-                return json.dumps(response.toDict())
-            
-            # ? Kalo index di posisi tersebut udah keisi di server, INTINYA kita ngikutin leader. Leader selalu bener, jadi kita harus rollback semua log yang ada di server 
-            if (len(server.instance.log) > 0):
-                if (server.instance.log[request["prev_log_index"]][0] != request["prev_log_term"]):
-                    server.instance.log = server.instance.log[:request["prev_log_index"]]
-
-            # ? Append entries yg baru dikirim dr leader ke semua log, klo gak ya heartbeat aja ga usah di append
-            if (len(request["entries"]) != 0 ):
-                entry = request["entries"]
-                server.instance.log.append(entry)
-                print(f"[FOLLOWER] Append entries from {addr.ip}:{addr.port}: {entry}")
+            if len(request["entries"]) != 0 :
+                return __log_replication(request, addr)
+            elif request["leader_commit_index"] > server.instance.commit_index:
+                return __commit_log(request, addr)
             else:
-                print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
-
-            # ? Kalo leader commit nya lebih gede dari current server commit index, set commit index nya jadi min(leaderCommit, index New Entry)
-            if (request["leader_commit_index"] > server.instance.commit_index):
-                server.instance.commit_index = min(request["leader_commit_index"], len(server.instance.log) - 1)
-
-            response = AppendEntry.Response(
-                server.instance.election_term,
-                True,
-            )
-
-            # Update election timeout when receive heartbeat
-            server.instance._set_election_timeout()
-            return json.dumps(response.toDict())
+                return __heartbeat(request, addr)
         
         @server.register_function
         def update_cluster_addr_list(request):
