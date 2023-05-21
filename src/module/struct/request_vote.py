@@ -23,8 +23,21 @@ class RequestVote:
             self.candidate_id       : int = 0
             self.last_log_index     : int = 0
             self.last_log_term      : int = 0
-    
+
+        def toDict(self) -> dict:
+            return {
+                "term": self.term,
+                "candidate_id": self.candidate_id,
+                "last_log_index": self.last_log_index,
+                "last_log_term": self.last_log_term
+            }
     class Response:
         def __init__(self) -> None:
             self.term               : int   = 0
             self.vote_granted       : bool  = False
+        
+        def toDict(self) -> dict:
+            return {
+                "term": self.term,
+                "vote_granted": self.vote_granted,
+            }

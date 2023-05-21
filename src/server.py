@@ -51,6 +51,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 }
             )
 
+        # Harusnya ini append entry tapi kosong
         @server.register_function
         def heartbeat(request):
             """ 
@@ -66,11 +67,14 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 False,
             )
 
+            # Leader send heartbeat
+            # Kalo term nya leader lebih gede,
             if (request["term"] > server.instance.election_term):
                 print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
                 server.instance._set_election_timeout()
                 return json.dumps(response.toDict())
             
+            # 
             if (len(server.instance.log) - 1 if len(server.instance.log) > 0 else 0 != request["prev_log_index"]):
                 print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
                 server.instance._set_election_timeout()
@@ -126,6 +130,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 }
             )
         
+        # ? Ini harusnya di cek di heartbeat
         @server.register_function
         def execute_from_client(request):
             """
