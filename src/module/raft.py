@@ -49,9 +49,11 @@ class RaftNode:
         self.election_timeout:    int               = time.time() + RaftNode.ELECTION_TIMEOUT_MIN + random() 
         self.election_interval:   int               = RaftNode.ELECTION_TIMEOUT_MIN + random()
         self.voted_for:           int               = -1
+        self.vote_count:          int               = 0
         
         self.commit_index:        int               = 0
         self.last_applied:        int               = 0
+        self.last_heartbeat_received: int           = time.time()
         
         # Reinit after election
         self.match_index:         Dict[str, int] = {}
@@ -81,13 +83,35 @@ class RaftNode:
         # TODO : Inform to all node this is new leader
         self.heartbeat_thread = Thread(target=asyncio.run,args=[self.__leader_heartbeat()])
         self.heartbeat_thread.start()
+    
+    def __get_address_index(self):
+        for i in range(len(self.cluster_addr_list)):
+            if Address(self.cluster_addr_list[i]['ip'], self.cluster_addr_list[i]['port']) == self.address:
+                return i
+        return -1
+    
+    def __get_address_index_by_addr(self, addr: Address):
+        for i in range(len(self.cluster_addr_list)):
+            if Address(self.cluster_addr_list[i]['ip'], self.cluster_addr_list[i]['port']) == addr:
+                return i
+        return -1
+
+    async def __start_election_timeout(self):
+        while True:
+            if self.type == RaftNode.NodeType.LEADER:
+                await asyncio.sleep(1)
+                continue
+            if time.time() > self.election_timeout:
+                self.__print_log("Election timeout, start election...")
+                self.__start_election()
+            await asyncio.sleep(0.1)
 
     async def __leader_heartbeat(self):
         while True:
             self.__print_log("Sending heartbeat...")
 
             for addr in self.cluster_addr_list:
-                if addr == self.address:
+                if Address(addr['ip'], addr['port']) == self.address:
                     continue
                 self.heartbeat(addr)
 
@@ -132,7 +156,27 @@ class RaftNode:
             await asyncio.sleep(self.election_interval)
     
     def __start_election(self):
-        pass
+        self._set_election_timeout()
+        self.voted_for = self.__get_address_index()
+        self.__print_log(f"Start election for term [{self.election_term}]")
+
+        self.vote_count = 1
+        self.__request_votes()
+
+    def __request_votes(self):
+        request = {
+            "term": self.election_term,
+            "candidate_id": self.__get_address_index(),
+            "last_log_index": len(self.log) - 1,
+            "last_log_term": self.log[-1][0] if len(self.log) > 0 else 0
+        }
+
+        for addr in self.cluster_addr_list:
+            addr = Address(addr['ip'], addr['port'])
+            if addr == self.address:
+                continue
+            self.__send_request(request, "request_vote", addr)
+        
 
     def __try_to_apply_membership(self, contact_addr: Address):
         """ 
@@ -204,6 +248,7 @@ class RaftNode:
         """ 
         This function will send heartbeat to follower address
         """
+        self.last_heartbeat_received = time.time()
         last_log_index = len(self.log) - 1 if len(self.log) > 0 else 0
 
         append_entry = AppendEntry.Request(
@@ -232,8 +277,37 @@ class RaftNode:
             request = append_entry.toDict()
             response = self.__send_request(request, "heartbeat", follower_addr)
 
+
+    def request_vote(self, request: "json") -> "json":
+        """ 
+        This RPC function will handle request vote from candidate
+        """
+        request = RequestVote.Request(**request)
+        response = RequestVote.Response(self.election_term, False)
+
+        # Check if the candidate term is greater than follower term
+        if request.term > self.election_term:
+            if self.voted_for == -1 or self.voted_for == request.candidate_id:
+                self.__print_log(f"Vote for candidate {request.candidate_id} for term {request.term}")
+                self.election_term = request.term
+                self.type = RaftNode.NodeType.FOLLOWER
+                self.voted_for = request.candidate_id
+                self._set_election_timeout()
+                response.vote_granted = True
+        else:
+            self.__print_log(f"Reject vote for candidate {request.candidate_id} for term {request.term}")
+
+        return response.toDict()
+
+
     # Client RPCs 
     def execute(self, json_request: str) -> "json":
         request = json.loads(json_request)
         # TODO : Implement execute
         return response
+
+
+# TODO for election:
+# handle vote response & count votes
+# detecting majority
+# change state to leader if majority
