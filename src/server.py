@@ -35,14 +35,14 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 server.instance.election_term,
                 True,
             )
-            return json.dumps(response.toDict())
+            return json.dumps(response.to_dict())
 
         def __fail_append_entry_response():
             response = AppendEntry.Response(
                 server.instance.election_term,
                 False,
             )
-            return json.dumps(response.toDict())
+            return json.dumps(response.to_dict())
 
         def __log_replication(request, addr):
             if (len(server.instance.log) > 0 and request["prev_log_index"] < len(server.instance.log)):
@@ -50,17 +50,20 @@ def start_serving(addr: Address, contact_node_addr: Address):
                     print(f"[FOLLOWER] Log is invalid")
                     return __fail_append_entry_response()
 
+            # ! Need fix
             print(f"[FOLLOWER] Log replication from {addr.ip}:{addr.port}")
             server.instance.log = server.instance.log[:request["prev_log_index"] + 1]
             server.instance.log.extend(request["entries"])
-            server.instance.commit_index = min(request["leader_commit_index"], len(server.instance.log) - 1)
+            # server.instance.commit_index = min(
+            #     request["leader_commit_index"], len(server.instance.log) - 1)
             server.instance._set_election_timeout()
 
             return __success_append_entry_response()
 
         def __commit_log(request, addr):
             print(f"[FOLLOWER] Commit log from {addr.ip}:{addr.port}")
-            server.instance.commit_index = min(request["leader_commit_index"], len(server.instance.log) - 1)
+            server.instance.commit_index = min(
+                request["leader_commit_index"], len(server.instance.log) - 1)
             server.instance._set_election_timeout()
 
             return __success_append_entry_response()
@@ -87,13 +90,13 @@ def start_serving(addr: Address, contact_node_addr: Address):
             addr = Address(request["ip"], int(request["port"]))
 
             server.instance.cluster_addr_list.append(addr)
+
+            # Ini buat log replication
             server.instance.match_index[str(addr)] = 0
-            server.instance.next_index[str(addr)] = len(server.instance.log)
+            server.instance.next_index[str(addr)] = 0
+
             print(
                 f"[LEADER] New node {addr.ip}:{addr.port} joined the cluster")
-
-            # print(server.instance.cluster_addr_list)
-            # server.instance.__broadcast_cluster_addr_list()
 
             return json.dumps(
                 {
@@ -162,21 +165,39 @@ def start_serving(addr: Address, contact_node_addr: Address):
             Leader will execute the command if majority agrees
             If follower receives this then it will redirect to leader
             """
-
             request = json.loads(request)
 
-            # ? Kalo leader
-            # 1. masukin log
-            # 2. lakukan log replication
-            # 3. kasihtau kesmua commit
-            # 4. Klo udah semua commmit,
             if (server.instance.type == RaftNode.NodeType.LEADER):
                 print(f"[LEADER] Execute from client {request}")
                 entry = [server.instance.election_term,
                          request["command"], request["args"]]
 
+                # 1. masukin log
                 server.instance.log.append(entry)
                 server.instance.entry = entry
+
+                # 2. lakukan log replication
+                # AppendEntry RPC with entry
+                responses = []
+                list_addr = server.instance.cluster_addr_list
+                print(list_addr)
+                for addr in server.instance.cluster_addr_list:
+                    # Jangan kirim log ke leader lagi
+                    if addr == server.instance.cluster_leader_addr:
+                        continue
+
+                    prev_log_index = max(len(server.instance.log) - 1, 0)
+                    prev_log_term = server.instance.log[prev_log_index][0]
+
+                    request = AppendEntry.Request(server.instance.election_term, server.instance.cluster_leader_addr,
+                                                  prev_log_index, prev_log_term, entry, server.instance.commit_index)
+
+                    response = __log_replication(
+                        request=request.to_dict(), addr=addr).to_dict()
+                    print(response)
+                    responses.append(response)
+
+                # 3. kasihtau kesmua commit
 
                 response = ClientRPC.Response(ClientRPC.SUCCESS)
 
@@ -230,7 +251,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 server.instance.__print_log(
                     f"Reject vote for candidate {request.candidate_id} for term {request.term}")
 
-            return response.toDict()
+            return response.to_dict()
 
         try:
             server.serve_forever()

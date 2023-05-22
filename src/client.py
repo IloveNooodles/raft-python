@@ -102,7 +102,7 @@ def start_serving(addr: Address):
             contact_address = Address(
                 response["address"]["ip"], response["address"]["port"])
             response = __send_request(
-                requests, "execute_from_client", contact_address)
+                requests.to_dict(), "execute_from_client", contact_address)
 
         print("[RESPONSE]", response)
 

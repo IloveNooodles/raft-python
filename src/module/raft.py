@@ -55,12 +55,12 @@ class RaftNode:
         # ? random float for timeout, called here so in this node, the random float is the same
         random_float = random()
         socket.setdefaulttimeout(RaftNode.RPC_TIMEOUT)
-        self.leader_id = -1
+        self.leader_id:           int = -1
         self.address:             Address = addr
         self.type:                RaftNode.NodeType = RaftNode.NodeType.FOLLOWER
         self.log:                 List[int, str,
                                        str] = []  # [term, command, args]
-        self.entry:               List[str, str] = []
+        self.entry:               List[int, str, str] = []
         self.app:                 MessageQueue = application
 
         # Election stuff
@@ -373,7 +373,7 @@ class RaftNode:
             self.__print_log(
                 f"Sending entries from {index} to {last_log_index} to {follower_addr}")
 
-            request = append_entry.toDict()
+            request = append_entry.to_dict()
             response = self.__send_request(
                 request, "append_entry", follower_addr)
 
@@ -384,7 +384,7 @@ class RaftNode:
                 self.next_index[str(follower_addr)] = last_log_index
 
         else:
-            request = append_entry.toDict()
+            request = append_entry.to_dict()
             response = self.__send_request(
                 request, "append_entry", follower_addr)
 
@@ -412,19 +412,14 @@ class RaftNode:
             self.__print_log(
                 f"Reject vote for candidate {request.candidate_id} for term {request.term}")
 
-        print("Response", response.toDict())
+        print("Response", response.to_dict())
 
-        return response.toDict()
+        return response.to_dict()
 
     # Client RPCs
-
     def execute(self, json_request: str) -> "json":
         request = json.loads(json_request)
-        # TODO : Implement execute
-
-        # ? Kalo commitIndex > lastApplied, increment lastApplied trs commit ?
-
-        # ? Kalo ada request yang punya TERM lebih gede dari term server ini, convert ke follower.
+        print(request)
         return response
 
 
