@@ -41,6 +41,9 @@ def menu():
 def validate_input(command):
     available_command = ["queue", "dequeue", "request_log", "exit"]
 
+    if len(command) == 1 and (command[0] == "exit"):
+        return True
+
     if len(command) != 4:
         print("Please input correct command")
         return False
@@ -87,12 +90,12 @@ def start_serving(addr: Address):
         if not is_valid:
             continue
 
+        if command[0] == "exit":
+            break
+
         ip, port, command_to_execute, args = command
 
         address = Address(ip, int(port))
-
-        if command == "exit":
-            break
 
         requests = ClientRPC.Request(request_id, command_to_execute, args)
         response = __send_request(
