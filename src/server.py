@@ -3,6 +3,7 @@ import os
 import signal
 import sys
 import asyncio
+import time
 from xmlrpc.server import SimpleXMLRPCServer
 
 from module.raft import RaftNode
@@ -11,6 +12,7 @@ from module.struct.message_queue import MessageQueue
 from module.struct.append_entries import AppendEntry
 from module.struct.request_vote import RequestVote
 from module.struct.client_rpc import ClientRPC
+from module.struct.color import Colors
 
 
 def start_serving(addr: Address, contact_node_addr: Address):
@@ -66,13 +68,25 @@ def start_serving(addr: Address, contact_node_addr: Address):
             return __success_append_entry_response()
 
         def __heartbeat(request, addr):
-            print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
+            # server.instance.__print_log("Heartbeat from " + addr.ip + ":" + str(addr.port))
+            __print_log_server(f"Heartbeat from {addr.ip}:{addr.port}")
             if request["term"] >= server.instance.election_term:
                 server.instance.election_term = request["term"]
                 server.instance.type = RaftNode.NodeType.FOLLOWER
             server.instance._set_election_timeout()
 
             return __success_append_entry_response()
+
+        def __print_log_server(text: str):
+            # ? Log format : [address] [time] [type] text
+            if server.instance.type == RaftNode.NodeType.LEADER:
+                color = Colors.OKBLUE
+            elif server.instance.type == RaftNode.NodeType.CANDIDATE:
+                color = Colors.OKGREEN
+            elif server.instance.type == RaftNode.NodeType.FOLLOWER:
+                color = Colors.OKCYAN
+
+            print(Colors.OKBLUE + f"[{server.instance.address}]" + Colors.ENDC + f"[{time.strftime('%H:%M:%S')}]" + color + f"[{server.instance.type}]" + Colors.ENDC + f" {text}")
 
         @server.register_function
         def apply_membership(request):
@@ -136,7 +150,13 @@ def start_serving(addr: Address, contact_node_addr: Address):
             """
             request = json.loads(request)
 
-            print(f"[FOLLOWER] Update cluster addr list")
+            # server.instance.__print_log("Update cluster addr list")
+
+            # print(f"[FOLLOWER] Update cluster addr list")
+
+            __print_log_server("Update cluster addr list")
+
+            # print("cluuseter", server.instance.cluster_addr_list)
 
             cluster_addr_list = []
             for addr in request["cluster_addr_list"]:
@@ -171,6 +191,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
             # 3. kasihtau kesmua commit
             # 4. Klo udah semua commmit,
             if (server.instance.type == RaftNode.NodeType.LEADER):
+                # server.instance.__print_log("Execute from client " + request)
                 print(f"[LEADER] Execute from client {request}")
                 entry = [server.instance.election_term,
                          request["command"], request["args"]]
@@ -185,6 +206,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 )
 
             elif (server.instance.type == RaftNode.NodeType.FOLLOWER):
+                # server.instance.__print_log("Redirecting to Leader")
                 print(f"[FOLLOWER] Redirecting to Leader")
 
                 leader_address = server.instance.cluster_leader_addr
@@ -209,12 +231,16 @@ def start_serving(addr: Address, contact_node_addr: Address):
 
             # ? cek apakah si server ini udah pernah ngevote buat leader tertentu apa belom. Cek juga log nya klo lognya uptodate baru grant vote, klo ga gasuah di vote
 
-            request = RequestVote.Request(**request)
-            response = RequestVote.Response(
-                server.instance.election_term, False)
+            print(f"[FOLLOWER] Receive vote request from candidate {request.candidate_id} for term {request.term}")
 
-            server.instance.__print_log(
-                f"Receive vote request from candidate {request.candidate_id} for term {request.term}")
+            request = json.loads(request)
+            response = RequestVote.Response(
+                server.instance.election_term,
+                False,
+            )
+
+
+            # server.instance.__print_log(f"Receive vote request from candidate {request.candidate_id} for term {request.term}")
 
             # Check if the candidate term is greater than follower term
             if request.term > server.instance.election_term:
