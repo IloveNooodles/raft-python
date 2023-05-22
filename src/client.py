@@ -12,16 +12,20 @@ def __send_request(request: Any, rpc_name: str, addr: Address) -> "json":
     """ 
     Send Request is invoking the RPC to server
     """
-
     node = ServerProxy(f"http://{addr.ip}:{addr.port}")
     json_request = json.dumps(request)
     rpc_function = getattr(node, rpc_name)
-    response = ClientRPC.Response(status=False)
-    try:
-        response = json.loads(rpc_function(json_request))
-    except:
-        # ? Harusnya retry
-        traceback.print_exc()
+    response = ClientRPC.Response(ClientRPC.FAILED).to_dict()
+
+    while response["status"] == ClientRPC.FAILED:
+        print("[REQUEST] Sending to server")
+        try:
+            response = json.loads(rpc_function(json_request))
+        except KeyboardInterrupt:
+            break
+        except:
+            print("[RESPONSE] Can't connect to server. retrying...")
+            continue
 
     return response
 
@@ -89,21 +93,18 @@ def start_serving(addr: Address):
 
         if command == "exit":
             break
-        try:
-            requests = ClientRPC.Request(request_id, command_to_execute, args)
+
+        requests = ClientRPC.Request(request_id, command_to_execute, args)
+        response = __send_request(
+            requests.to_dict(), "execute_from_client", address)
+
+        if response["status"] == ClientRPC.REDIRECTED:
+            contact_address = Address(
+                response["address"]["ip"], response["address"]["port"])
             response = __send_request(
-                requests.to_dict(), "execute_from_client", address)
+                requests, "execute_from_client", contact_address)
 
-            print(response)
-
-            if response["status"] == ClientRPC.REDIRECTED:
-                contact_address = Address(
-                    response["address"]["ip"], response["address"]["port"])
-                response = __send_request(
-                    requests, "execute_from_client", contact_address)
-        except:
-            # TODO implement retry execute command
-            print("Can't connect to server. retrying...")
+        print("[RESPONSE]", response)
 
 
 if __name__ == "__main__":
