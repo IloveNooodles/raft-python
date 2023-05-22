@@ -137,6 +137,11 @@ def start_serving(addr: Address, contact_node_addr: Address):
             if request["term"] < server.instance.election_term:
                 return __fail_append_entry_response()
 
+            if server.instance.type == RaftNode.NodeType.CANDIDATE:
+                server.instance.type = RaftNode.NodeType.FOLLOWER
+                server.instance.cluster_leader_addr = addr
+
+
             __heartbeat(request, addr)
             if len(request["entries"]) != 0:
                 return __log_replication(request, addr)
@@ -280,6 +285,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
                     __print_log_server(
                         f"Vote for candidate {request['candidate_id']} for term {request['term']}")
                     server.instance.election_term = request['term']
+                    server.instance.initialize_as_follower()
                     server.instance.type = RaftNode.NodeType.FOLLOWER
                     server.instance.voted_for = request['candidate_id']
                     server.instance._set_election_timeout()

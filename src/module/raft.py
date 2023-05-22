@@ -29,7 +29,7 @@ class RaftNode:
     """
     HEARTBEAT_INTERVAL = 1
     ELECTION_TIMEOUT_MIN = 5
-    ELECTION_TIMEOUT_MAX = 10
+    ELECTION_TIMEOUT_MAX = 15
     RPC_TIMEOUT          = 5
 
     class NodeType(Enum):
@@ -84,6 +84,7 @@ class RaftNode:
         self.cluster_leader_addr: Address = None
 
         self.timeout_thread = None
+        self.heartbeat_thread = None
 
         if contact_addr is None:
             self.cluster_addr_list.append(self.address)
@@ -117,20 +118,31 @@ class RaftNode:
         self.heartbeat_thread = Thread(target=asyncio.run, args=[
                                        self.__leader_heartbeat()])
         self.heartbeat_thread.start()
+        
+        if self.timeout_thread is not None:
+            self.timeout_thread.join()
+            self.timeout_thread = None
 
-    def __initialize_as_follower(self):
+    def initialize_as_follower(self):
         # ? Initialize as follower node
         self.__print_log("Initialize as follower node...")
         self.type = RaftNode.NodeType.FOLLOWER
+        print("MASUK Ga heart")
+        if self.heartbeat_thread is not None:
+            print("masuk")
+            self.heartbeat_thread.join()
+            self.heartbeat_thread = None
+        self.__listen_timeout()
 
-    def __get_address_index(self):
+
+    def get_address_index(self):
         # ? Get index of this address in cluster_addr_list (equivalent to id)
         for i in range(len(self.cluster_addr_list)):
             if Address(self.cluster_addr_list[i]['ip'], self.cluster_addr_list[i]['port']) == self.address:
                 return i
         return -1
 
-    def __get_address_index_by_addr(self, addr: Address):
+    def get_address_index_by_addr(self, addr: Address):
         # ? Get index of this address in cluster_addr_list
         for i in range(len(self.cluster_addr_list)):
             if Address(self.cluster_addr_list[i]['ip'], self.cluster_addr_list[i]['port']) == addr:
@@ -138,7 +150,7 @@ class RaftNode:
         return -1
 
     async def __leader_heartbeat(self):
-        while True:
+        while self.type == RaftNode.NodeType.LEADER:
             self.__print_log("Sending heartbeat...")
 
             for addr in self.cluster_addr_list:
@@ -173,14 +185,22 @@ class RaftNode:
         2. Candidate will up his term
         3. Start the election 
         """
-        while True:
+
+        has_leader = False
+        while not has_leader:
             is_candidate = self.type == RaftNode.NodeType.CANDIDATE
             is_follower = self.type == RaftNode.NodeType.FOLLOWER
             is_timeout = time.time() > self.election_timeout
             if (is_candidate or is_follower) and is_timeout:
+                
+                if self.cluster_leader_addr is not None:
+                    self.__print_log("Leader is found")
+                    self.type = RaftNode.NodeType.FOLLOWER
+                    has_leader = True
 
                 if is_follower:
                     self.__print_log("No heartbeat found from leader")
+                    self.cluster_leader_addr = None
                     self.type = RaftNode.NodeType.CANDIDATE
                     self.__print_log("Switching to candidate")
 
@@ -188,6 +208,7 @@ class RaftNode:
                 self.__print_log(
                     f"Current election term [{self.election_term}]")
                 await self.__start_election()
+                self._set_election_timeout()
                 self.__listen_timeout()
                 break
 
@@ -200,7 +221,7 @@ class RaftNode:
         # ? Send Request Vote Ke semua server
 
         self._set_election_timeout()
-        self.voted_for = self.__get_address_index()
+        self.voted_for = self.get_address_index()
         self.__print_log(f"Start election for term [{self.election_term}]")
 
         self.vote_count = 1
@@ -213,7 +234,7 @@ class RaftNode:
     async def __request_votes(self):
         request = {
             "term": self.election_term,
-            "candidate_id": self.__get_address_index(),
+            "candidate_id": self.get_address_index(),
             "last_log_index": len(self.log) - 1,
             "last_log_term": self.log[-1][0] if len(self.log) > 0 else 0
         }
@@ -241,6 +262,9 @@ class RaftNode:
                 else:
                     self.__print_log(
                         f"Vote not granted from {addr.ip}:{addr.port}")
+            except KeyboardInterrupt:
+                self.__print_log("Keyboard Interrupt")
+                exit(0)
             except TimeoutError:
                 self.__print_log(
                     f"Request vote to {addr.ip}:{addr.port} timeout")
@@ -370,9 +394,11 @@ class RaftNode:
             self.__print_log(response)
         except KeyboardInterrupt:
             exit(1)
+        except ConnectionRefusedError:
+            self.__print_log(f"[{addr}] is not replying (refused, likely down)")    
         except:
             traceback.print_exc()
-            self.__print_log(f"[{addr}] Is not replying (nack)")
+            self.__print_log(f"[{addr}] is not replying (nack)")
 
         return response
 
