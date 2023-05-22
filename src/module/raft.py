@@ -453,6 +453,7 @@ class RaftNode:
 
         self.__print_log(index)
 
+        # ? Klo prev nya kelebihan dari log index skrg, rollback sampe ketemu
         if (prev_log_index >= index):
             append_entry.entries = self.log[index:]
             self.__print_log(
@@ -462,11 +463,13 @@ class RaftNode:
             response = self.__send_request(
                 request, "append_entry", follower_addr)
 
-            if (response["success"] == False):
+            while (response["success"] == False):
                 self.next_index[str(follower_addr)] -= 1
-            else:
-                self.match_index[str(follower_addr)] = prev_log_index
-                self.next_index[str(follower_addr)] = prev_log_index
+                append_entry.prev_log_index -= 1
+                response = self.__send_request(request, "append_entry", follower_addr)
+
+            self.match_index[str(follower_addr)] = prev_log_index
+            self.next_index[str(follower_addr)] = prev_log_index
 
         else:
             request = append_entry.to_dict()

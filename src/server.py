@@ -148,6 +148,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
             __heartbeat(request, addr)
             if len(request["entries"]) != 0:
                 __log_replication(request, addr)
+                
 
             if request["leader_commit_index"] > server.instance.commit_index:
                 __commit_log(request, addr)
