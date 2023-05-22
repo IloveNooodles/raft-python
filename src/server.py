@@ -65,6 +65,8 @@ def start_serving(addr: Address, contact_node_addr: Address):
             __print_log_server(f"Commit log from {addr.ip}:{addr.port}")
             server.instance.commit_index = min(
                 request["leader_commit_index"], len(server.instance.log) - 1)
+            #? Apply log to state machine
+            server.instance._apply_entries()
             server.instance._set_election_timeout()
 
             return __success_append_entry_response()
@@ -213,6 +215,22 @@ def start_serving(addr: Address, contact_node_addr: Address):
                     responses.append(response)
 
                 # 3. Kalo majority agree, berarti
+                majority_threshold = len(server.instance.cluster_addr_list) // 2 + 1
+                # ? leader termasuk majority, mulai dari 1
+                count_success = 1
+                # ? cek berapa banyak follower yang agree
+                for response in responses:
+                    if response["success"]:
+                        count_success += 1
+
+                if (count_success >= majority_threshold):
+                    # ? kalo majority agree, leader commit log dan apply ke state machine
+                    __print_log_server(f"Majority agree, commit log")
+                    server.instance.commit_index += 1
+                    server.instance._apply_entries()
+                    server.instance._set_election_timeout()
+
+                    # ? kalo udah commit log, kirim response ke client
 
                 response = ClientRPC.Response(ClientRPC.SUCCESS)
 

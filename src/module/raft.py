@@ -72,8 +72,8 @@ class RaftNode:
         self.voted_for:           int = -1
         self.vote_count:          int = 0
 
-        self.commit_index:        int = 0
-        self.last_applied:        int = 0
+        self.commit_index:        int = -1
+        self.last_applied:        int = -1
         self.last_heartbeat_received: int = time.time()
 
         # Reinit after election
@@ -371,7 +371,7 @@ class RaftNode:
         except KeyboardInterrupt:
             exit(1)
         except:
-            # traceback.print_exc()
+            traceback.print_exc()
             self.__print_log(f"[{addr}] Is not replying (nack)")
 
         return response
@@ -455,6 +455,8 @@ class RaftNode:
             request = append_entry.to_dict()
             response = self.__send_request(
                 request, "append_entry", follower_addr)
+            
+        return response
 
     def request_vote(self, request: "json") -> "json":
         """ 

@@ -21,9 +21,11 @@ def __send_request(request: Any, rpc_name: str, addr: Address) -> "json":
         print("[REQUEST] Sending to server")
         try:
             response = json.loads(rpc_function(json_request))
+            print("[RESPONSE]", response)
         except KeyboardInterrupt:
             break
         except:
+            traceback.print_exc()
             print("[RESPONSE] Can't connect to server. retrying...")
             continue
 
