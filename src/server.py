@@ -91,6 +91,10 @@ def start_serving(addr: Address, contact_node_addr: Address):
             if request["term"] >= server.instance.election_term:
                 server.instance.election_term = request["term"]
                 server.instance.type = RaftNode.NodeType.FOLLOWER
+            
+            if server.instance.voted_for != -1:
+                server.instance.voted_for = -1 
+
             server.instance._set_election_timeout()
 
             return __success_append_entry_response()
@@ -329,12 +333,12 @@ def start_serving(addr: Address, contact_node_addr: Address):
                     server.instance.initialize_as_follower()
                     server.instance.type = RaftNode.NodeType.FOLLOWER
                     server.instance.voted_for = request['candidate_id']
-                    server.instance._set_election_timeout()
                     response.vote_granted = True
             else:
                 __print_log_server(
                     f"Reject vote for candidate {request['candidate_id']} for term {request['term']}")
 
+            server.instance._set_election_timeout()
             __print_log_server(
                 f"Send vote response to candidate {request['candidate_id']} for term {request['term']}: {response.vote_granted}")
 

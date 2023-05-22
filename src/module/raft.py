@@ -92,6 +92,17 @@ class RaftNode:
             self.__listen_timeout()
             self.__try_to_apply_membership(contact_addr)
 
+    
+    def __shutdown(self):
+        self.__print_log("Shutting down...")
+        if self.timeout_thread is not None:
+            self.timeout_thread.join()
+            self.timeout_thread = None
+        if self.heartbeat_thread is not None:
+            self.heartbeat_thread.join()
+            self.heartbeat_thread = None
+        exit(0)
+
     # Internal Raft Node methods
     def __print_log(self, text: str):
         # ? Log format : [address] [time] [type] text
@@ -175,6 +186,7 @@ class RaftNode:
         self.timeout_thread = Thread(
             target=asyncio.run, args=[self.__on_timeout()])
         self.timeout_thread.start()
+    
 
     async def __on_timeout(self):
         """ 
@@ -186,32 +198,35 @@ class RaftNode:
         """
 
         has_leader = False
-        while not has_leader and not self.type == RaftNode.NodeType.LEADER:
-            is_candidate = self.type == RaftNode.NodeType.CANDIDATE
-            is_follower = self.type == RaftNode.NodeType.FOLLOWER
-            is_timeout = time.time() > self.election_timeout
-            if (is_candidate or is_follower) and is_timeout:
-                
-                if self.cluster_leader_addr is not None:
-                    self.__print_log("Leader is found")
-                    self.type = RaftNode.NodeType.FOLLOWER
-                    has_leader = True
+        try:
+            while not has_leader and not self.type == RaftNode.NodeType.LEADER:
+                is_candidate = self.type == RaftNode.NodeType.CANDIDATE
+                is_follower = self.type == RaftNode.NodeType.FOLLOWER
+                is_timeout = time.time() > self.election_timeout
+                if (is_candidate or is_follower) and is_timeout:
+                    
+                    if self.cluster_leader_addr is not None:
+                        self.__print_log("Leader is found")
+                        self.type = RaftNode.NodeType.FOLLOWER
+                        has_leader = True
 
-                if is_follower:
-                    self.__print_log("No heartbeat found from leader")
-                    self.cluster_leader_addr = None
-                    self.type = RaftNode.NodeType.CANDIDATE
-                    self.__print_log("Switching to candidate")
+                    if is_follower:
+                        self.__print_log("No heartbeat found from leader")
+                        self.cluster_leader_addr = None
+                        self.type = RaftNode.NodeType.CANDIDATE
+                        self.__print_log("Switching to candidate")
 
-                self.election_term += 1
-                self.__print_log(
-                    f"Current election term [{self.election_term}]")
-                await self.__start_election()
-                self._set_election_timeout()
-                self.__listen_timeout()
-                break
+                    self.election_term += 1
+                    self.__print_log(
+                        f"Current election term [{self.election_term}]")
+                    await self.__start_election()
+                    self._set_election_timeout()
+                    self.__listen_timeout()
+                    break
 
-            await asyncio.sleep(self.election_interval)
+                await asyncio.sleep(self.election_interval)
+        except KeyboardInterrupt:
+            self.__shutdown()
 
     async def __start_election(self):
         # ? Pas jadi candidate,
@@ -262,8 +277,7 @@ class RaftNode:
                     self.__print_log(
                         f"Vote not granted from {addr.ip}:{addr.port}")
             except KeyboardInterrupt:
-                self.__print_log("Keyboard Interrupt")
-                exit(0)
+                self.__shutdown()
             except TimeoutError:
                 self.__print_log(
                     f"Request vote to {addr.ip}:{addr.port} timeout")
@@ -430,7 +444,6 @@ class RaftNode:
     #         self.__print_log(f"[{addr}] Is not replying (nack)")
 
     #     return response
-        return response
 
     def _apply_log(self):
         """ 
