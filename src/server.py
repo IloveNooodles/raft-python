@@ -123,8 +123,8 @@ def start_serving(addr: Address, contact_node_addr: Address):
             server.instance.cluster_addr_list.append(addr)
 
             # Ini buat log replication
-            server.instance.match_index[str(addr)] = 0
-            server.instance.next_index[str(addr)] = 0
+            server.instance.match_index[str(addr)] = -1
+            server.instance.next_index[str(addr)] = -1
 
             __print_log_server(
                 f"New node {addr.ip}:{addr.port} joined the cluster")

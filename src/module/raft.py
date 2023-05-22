@@ -396,7 +396,7 @@ class RaftNode:
         except ConnectionRefusedError:
             self.__print_log(f"[{addr}] is not replying (refused, likely down)")    
         except:
-            traceback.print_exc()
+            # traceback.print_exc()
             self.__print_log(f"[{addr}] is not replying (nack)")
 
         return response
@@ -481,7 +481,7 @@ class RaftNode:
 
         # ? Klo prev nya kelebihan dari log index skrg, rollback sampe ketemu
         if (prev_log_index >= index):
-            append_entry.entries = self.log[index:]
+            append_entry.entries = self.log[index+1:]
             self.__print_log(
                 f"Sending entries {append_entry.entries} to {follower_addr}")
 
@@ -489,13 +489,12 @@ class RaftNode:
             response = self.__send_request(
                 request, "append_entry", follower_addr)
 
-            while (response["success"] == False):
-                self.next_index[str(follower_addr)] -= 1
-                append_entry.prev_log_index -= 1
-                response = self.__send_request(request, "append_entry", follower_addr)
-
-            self.match_index[str(follower_addr)] = prev_log_index
-            self.next_index[str(follower_addr)] = prev_log_index
+            if (response["success"] == False):
+                if (self.next_index[str(follower_addr)] > 0):
+                    self.next_index[str(follower_addr)] -= 1
+            else:
+                self.match_index[str(follower_addr)] = prev_log_index
+                self.next_index[str(follower_addr)] = prev_log_index
 
         else:
             request = append_entry.to_dict()
