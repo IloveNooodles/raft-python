@@ -462,8 +462,6 @@ class RaftNode:
         index = self.next_index[str(follower_addr)] if str(
             follower_addr) in self.next_index else 0
 
-        self.__print_log(index)
-
         # ? Klo prev nya kelebihan dari log index skrg, rollback sampe ketemu
         if (prev_log_index >= index):
             append_entry.entries = self.log[index+1:]
