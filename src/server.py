@@ -5,7 +5,7 @@ import sys
 import asyncio
 import time
 from xmlrpc.server import SimpleXMLRPCServer
-
+from time import sleep
 from module.raft import RaftNode
 from module.struct.address import Address
 from module.struct.message_queue import MessageQueue
@@ -53,12 +53,11 @@ def start_serving(addr: Address, contact_node_addr: Address):
                     return __fail_append_entry_response()
 
             # ! Need fix
-            print(f"[FOLLOWER] Log replication from {addr.ip}:{addr.port}")
-            server.instance.log = server.instance.log[:request["prev_log_index"] + 1]
-            server.instance.log.extend(request["entries"])
+            # server.instance.log = server.instance.log[:request["prev_log_index"] + 1]
+            # server.instance.log.extend(request["entries"])
             # server.instance.commit_index = min(
             #     request["leader_commit_index"], len(server.instance.log) - 1)
-            server.instance._set_election_timeout()
+            # server.instance._set_election_timeout()
 
             return __success_append_entry_response()
 
@@ -89,10 +88,12 @@ def start_serving(addr: Address, contact_node_addr: Address):
             elif server.instance.type == RaftNode.NodeType.FOLLOWER:
                 color = Colors.OKCYAN
 
-            print(Colors.OKBLUE + f"[{server.instance.address}]" + Colors.ENDC + f"[{time.strftime('%H:%M:%S')}]" + color + f"[{server.instance.type}]" + Colors.ENDC + f" {text}")
+            print(Colors.OKBLUE + f"[{server.instance.address}]" + Colors.ENDC +
+                  f"[{time.strftime('%H:%M:%S')}]" + color + f"[{server.instance.type}]" + Colors.ENDC + f" {text}")
 
         @server.register_function
         def apply_membership(request):
+            # ! Need fix
             """ 
             When server connect to another server this function will get called via RPC
 
@@ -201,24 +202,16 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 # AppendEntry RPC with entry
                 responses = []
                 list_addr = server.instance.cluster_addr_list
-                print(list_addr)
-                for addr in server.instance.cluster_addr_list:
+
+                for addr in list_addr:
                     # Jangan kirim log ke leader lagi
                     if addr == server.instance.cluster_leader_addr:
                         continue
 
-                    prev_log_index = max(len(server.instance.log) - 1, 0)
-                    prev_log_term = server.instance.log[prev_log_index][0]
-
-                    request = AppendEntry.Request(server.instance.election_term, server.instance.cluster_leader_addr,
-                                                  prev_log_index, prev_log_term, entry, server.instance.commit_index)
-
-                    response = __log_replication(
-                        request=request.to_dict(), addr=addr).to_dict()
-                    print(response)
+                    response = server.instance.append_entries()
                     responses.append(response)
 
-                # 3. kasihtau kesmua commit
+                # 3. Kalo majority agree, berarti
 
                 response = ClientRPC.Response(ClientRPC.SUCCESS)
 
@@ -252,14 +245,14 @@ def start_serving(addr: Address, contact_node_addr: Address):
 
             # ? cek apakah si server ini udah pernah ngevote buat leader tertentu apa belom. Cek juga log nya klo lognya uptodate baru grant vote, klo ga gasuah di vote
 
-            print(f"[FOLLOWER] Receive vote request from candidate {request.candidate_id} for term {request.term}")
+            print(
+                f"[FOLLOWER] Receive vote request from candidate {request.candidate_id} for term {request.term}")
 
             request = json.loads(request)
             response = RequestVote.Response(
                 server.instance.election_term,
                 False,
             )
-
 
             # server.instance.__print_log(f"Receive vote request from candidate {request.candidate_id} for term {request.term}")
 

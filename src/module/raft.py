@@ -30,7 +30,7 @@ class RaftNode:
     HEARTBEAT_INTERVAL = 1
     ELECTION_TIMEOUT_MIN = 7
     ELECTION_TIMEOUT_MAX = 12
-    RPC_TIMEOUT          = 10
+    RPC_TIMEOUT = 10
 
     class NodeType(Enum):
         """ 
@@ -53,7 +53,8 @@ class RaftNode:
 
     def __init__(self, application: Any, addr: Address, contact_addr: Address = None):
         # ? random float for timeout, called here so in this node, the random float is the same
-        random_float = uniform(RaftNode.ELECTION_TIMEOUT_MIN, RaftNode.ELECTION_TIMEOUT_MAX)
+        random_float = uniform(RaftNode.ELECTION_TIMEOUT_MIN,
+                               RaftNode.ELECTION_TIMEOUT_MAX)
         socket.setdefaulttimeout(RaftNode.RPC_TIMEOUT)
         self.leader_id:           int = -1
         self.address:             Address = addr
@@ -99,7 +100,8 @@ class RaftNode:
         elif self.type == RaftNode.NodeType.FOLLOWER:
             color = Colors.OKCYAN
 
-        print(Colors.OKBLUE + f"[{self.address}]" + Colors.ENDC + f"[{time.strftime('%H:%M:%S')}]" + color + f"[{self.type}]" + Colors.ENDC + f" {text}")
+        print(Colors.OKBLUE + f"[{self.address}]" + Colors.ENDC +
+              f"[{time.strftime('%H:%M:%S')}]" + color + f"[{self.type}]" + Colors.ENDC + f" {text}")
 
     def __initialize_as_leader(self):
         # ? Initialize as leader node
@@ -140,7 +142,7 @@ class RaftNode:
             for addr in self.cluster_addr_list:
                 if Address(addr['ip'], addr['port']) == self.address:
                     continue
-                self.heartbeat(addr)
+                self.append_entries(addr)
 
             # await self.__broadcast_cluster_addr_list()
             await asyncio.sleep(RaftNode.HEARTBEAT_INTERVAL)
@@ -149,8 +151,9 @@ class RaftNode:
         if timeout:
             self.election_timeout = timeout
         else:
-            random_float = uniform(RaftNode.ELECTION_TIMEOUT_MIN, RaftNode.ELECTION_TIMEOUT_MAX)
-            self.election_timeout = time.time() +  random_float
+            random_float = uniform(
+                RaftNode.ELECTION_TIMEOUT_MIN, RaftNode.ELECTION_TIMEOUT_MAX)
+            self.election_timeout = time.time() + random_float
             self.election_interval = random_float
 
     def __listen_timeout(self):
@@ -221,7 +224,8 @@ class RaftNode:
             self.__print_log(f"Requesting vote to {addr.ip}:{addr.port}")
             try:
                 # ? Try to request vote
-                task = asyncio.create_task(asyncio.run(self.__send_request(addr,"request_vote",request)))
+                task = asyncio.create_task(asyncio.run(
+                    self.__send_request(addr, "request_vote", request)))
                 vote_request_tasks.append(task)
             except TimeoutError:
                 # ? If timeout, continue to next node
@@ -246,7 +250,6 @@ class RaftNode:
                 self.type = RaftNode.NodeType.LEADER
                 self.__initialize_as_leader()
                 break
-
 
     def __try_to_apply_membership(self, contact_addr: Address):
         """ 
@@ -364,18 +367,22 @@ class RaftNode:
         return response
 
     # Inter-node RPCs
-    def heartbeat(self, follower_addr: Address) -> "json":
+    def append_entries(self, follower_addr: Address) -> "json":
         """ 
         This function will send heartbeat to follower address
         """
         self.last_heartbeat_received = time.time()
-        last_log_index = len(self.log) - 1 if len(self.log) > 0 else 0
+        prev_log_index = max(len(self.log) - 1, 0)
+        prev_log_term = 0
+
+        if len(self.log) > 0:
+            prev_log_term = self.log[prev_log_index][0]
 
         append_entry = AppendEntry.Request(
             self.election_term,
             self.cluster_leader_addr,
-            last_log_index,
-            self.log[-1][0] if len(self.log) > 0 else 0,
+            prev_log_index,
+            prev_log_term,
             self.entry,
             self.commit_index,
         )
@@ -388,10 +395,10 @@ class RaftNode:
         index = self.next_index[str(follower_addr)] if str(
             follower_addr) in self.next_index else 0
 
-        if (last_log_index >= index):
+        if (prev_log_index >= index):
             append_entry.entries = self.log[index:]
             self.__print_log(
-                f"Sending entries from {index} to {last_log_index} to {follower_addr}")
+                f"Sending entries from {index} to {prev_log_index} to {follower_addr}")
 
             request = append_entry.to_dict()
             response = self.__send_request(
@@ -400,8 +407,8 @@ class RaftNode:
             if (response["success"] == False):
                 self.next_index[str(follower_addr)] -= 1
             else:
-                self.match_index[str(follower_addr)] = last_log_index
-                self.next_index[str(follower_addr)] = last_log_index
+                self.match_index[str(follower_addr)] = prev_log_index
+                self.next_index[str(follower_addr)] = prev_log_index
 
         else:
             request = append_entry.to_dict()
