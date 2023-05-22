@@ -95,7 +95,7 @@ def start_serving(addr: Address):
         if command[0] == "exit":
             break
 
-        if command[0] == "queue":
+        if command[2] == "queue":
             ip, port, command_to_execute, args = command
         else:
             ip, port, command_to_execute = command
