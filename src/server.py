@@ -47,29 +47,35 @@ def start_serving(addr: Address, contact_node_addr: Address):
             return json.dumps(response.to_dict())
 
         def __log_replication(request, addr):
-
             if (len(server.instance.log) > 0 and request["prev_log_index"] <= len(server.instance.log)):
                 # if log doesnt match then delete the difference
-                if (server.instance.log[request["prev_log_index"]][0] != request["prev_log_term"]):
+                if (server.instance.log[request["prev_log_index"]-1][0] != request["prev_log_term"]):
                     __print_log_server(f"Log is invalid")
-                    server.instance.log = server.instance.log[:request["prev_log_index"]]
+                    server.instance.log = server.instance.log[:request["prev_log_index"]+1]
+                    for entry in request["entries"]:
+                        if len(server.instance.log) == 0:
+                            server.instance.log.append(entry)
+                        # Cek Id nya yang paling belakang udah ada apa belom
+                        if len(server.instance.log) > 0 and server.instance.log[-1][-1] < entry[-1]:
+                            server.instance.log.append(entry)
                     return __fail_append_entry_response()
-
-            # ! Need fix
-            # server.instance.log = server.instance.log[:request["prev_log_index"] + 1]
-            # server.instance.log.extend(request["entries"])
+                else:
+                    __print_log_server(f"Log is valid")
+                    for entry in request["entries"]:
+                        if len(server.instance.log) == 0:
+                            server.instance.log.append(entry)
+                        # Cek Id nya yang paling belakang udah ada apa belom
+                        if len(server.instance.log) > 0 and server.instance.log[-1][-1] < entry[-1]:
+                            server.instance.log.append(entry)
+                    return __success_append_entry_response()
 
             # ? Append log to log list
             for entry in request["entries"]:
-                
                 if len(server.instance.log) == 0:
                     server.instance.log.append(entry)
-
                 # Cek Id nya yang paling belakang udah ada apa belom
-                if len(server.instance.log) > 0 and server.instance.log[-1][-1] > entry[-1]:
+                if len(server.instance.log) > 0 and server.instance.log[-1][-1] < entry[-1]:
                     server.instance.log.append(entry)
-
-            __print_log_server(server.instance.log)
 
             server.instance._set_election_timeout()
 
