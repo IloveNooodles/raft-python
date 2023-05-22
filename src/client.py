@@ -109,6 +109,9 @@ def start_serving(addr: Address):
             response = __send_request(
                 requests.to_dict(), "execute_from_client", contact_address)
 
+        if response["status"] == ClientRPC.SUCCESS:
+            request_id += 1
+
         print("[RESPONSE]", response)
 
 

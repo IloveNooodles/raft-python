@@ -61,9 +61,15 @@ def start_serving(addr: Address, contact_node_addr: Address):
 
             # ? Append log to log list
             for entry in request["entries"]:
-                server.instance.log.append(entry)
+                
+                if len(server.instance.log) == 0:
+                    server.instance.log.append(entry)
 
-            # __print_log_server(server.instance.log)
+                # Cek Id nya yang paling belakang udah ada apa belom
+                if len(server.instance.log) > 0 and server.instance.log[-1][-1] > entry[-1]:
+                    server.instance.log.append(entry)
+
+            __print_log_server(server.instance.log)
 
             server.instance._set_election_timeout()
 
@@ -149,11 +155,9 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 server.instance.type = RaftNode.NodeType.FOLLOWER
                 server.instance.cluster_leader_addr = addr
 
-
             __heartbeat(request, addr)
             if len(request["entries"]) != 0:
                 __log_replication(request, addr)
-                
 
             if request["leader_commit_index"] > server.instance.commit_index:
                 __commit_log(request, addr)
@@ -210,7 +214,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 # __print_log_server("Execute from client " + request)
                 __print_log_server(f"Execute from client {request}")
                 entry = [server.instance.election_term,
-                         request["command"], request["args"]]
+                         request["command"], request["args"], request["request_id"]]
 
                 # 1. masukin log
                 server.instance.log.append(entry)
