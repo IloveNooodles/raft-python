@@ -28,14 +28,14 @@ def start_serving(addr: Address, contact_node_addr: Address):
         server.register_introspection_functions()
         server.register_instance(RaftNode(MessageQueue(), addr, contact_node_addr),)
 
-        def __success_response():
+        def __success_append_entry_response():
             response = AppendEntry.Response(
                 server.instance.election_term,
                 True,
             )
             return json.dumps(response.toDict())
         
-        def __fail_response():
+        def __fail_append_entry_response():
             response = AppendEntry.Response(
                 server.instance.election_term,
                 False,
@@ -49,13 +49,13 @@ def start_serving(addr: Address, contact_node_addr: Address):
                     is_log_invalid = True
 
             if is_log_invalid:
-                return __fail_response()
+                return __fail_append_entry_response()
 
         def __commit_log(request, addr):
             server.instance.commit_index = min(request["leader_commit_index"], len(server.instance.log) - 1)
             server.instance._set_election_timeout()
 
-            return __success_response()
+            return __success_append_entry_response()
 
         def __heartbeat(request, addr):
             print(f"[FOLLOWER] Heartbeat from {addr.ip}:{addr.port}")
@@ -64,7 +64,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 server.instance.type = RaftNode.NodeType.FOLLOWER
             server.instance._set_election_timeout()
 
-            return __success_response()
+            return __success_append_entry_response()
 
         @server.register_function
         def apply_membership(request):
@@ -94,7 +94,6 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 }
             )
 
-        # TODO harusnya append entry kosong
         @server.register_function
         def append_entry(request):
             """ 
@@ -119,6 +118,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
             else:
                 return __heartbeat(request, addr)
         
+        # harusnya di masukin ke heatbeat?
         @server.register_function
         def update_cluster_addr_list(request):
             """ 
@@ -149,7 +149,6 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 }
             )
         
-        # ? Ini harusnya di cek di heartbeat
         @server.register_function
         def execute_from_client(request):
             """
@@ -192,23 +191,6 @@ def start_serving(addr: Address, contact_node_addr: Address):
                     }
                 )
 
-        try:
-            server.serve_forever()
-        except KeyboardInterrupt:
-            server.shutdown()
-            os.kill(os.getpid(), signal.SIGTERM)
-
-        @server.register_function
-        def request_log(request):
-            """
-            Client will request request_log of the current state
-
-            Must return the current consistent server log
-            """
-
-            request = json.loads(request)
-
-
         @server.register_function
         def request_vote(request):
             """ 
@@ -238,6 +220,12 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 server.instance.__print_log(f"Reject vote for candidate {request.candidate_id} for term {request.term}")
 
             return response.toDict()
+        
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            server.shutdown()
+            os.kill(os.getpid(), signal.SIGTERM)
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
