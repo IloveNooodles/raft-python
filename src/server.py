@@ -47,16 +47,24 @@ def start_serving(addr: Address, contact_node_addr: Address):
             return json.dumps(response.to_dict())
 
         def __log_replication(request, addr):
-            if (len(server.instance.log) > 0 and request["prev_log_index"] < len(server.instance.log)):
+
+            if (len(server.instance.log) > 0 and request["prev_log_index"] <= len(server.instance.log)):
+                # if log doesnt match then delete the difference
                 if (server.instance.log[request["prev_log_index"]][0] != request["prev_log_term"]):
                     __print_log_server(f"Log is invalid")
+                    server.instance.log = server.instance.log[:request["prev_log_index"]]
                     return __fail_append_entry_response()
 
             # ! Need fix
             # server.instance.log = server.instance.log[:request["prev_log_index"] + 1]
             # server.instance.log.extend(request["entries"])
-            # server.instance.commit_index = min(
-            #     request["leader_commit_index"], len(server.instance.log) - 1)
+
+            # ? Append log to log list
+            for entry in request["entries"]:
+                server.instance.log.append(entry)
+
+            __print_log_server(server.instance.log)
+
             server.instance._set_election_timeout()
 
             return __success_append_entry_response()
@@ -66,7 +74,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
             server.instance.commit_index = min(
                 request["leader_commit_index"], len(server.instance.log) - 1)
             #? Apply log to state machine
-            server.instance._apply_entries()
+            server.instance._apply_log()
             server.instance._set_election_timeout()
 
             return __success_append_entry_response()
@@ -139,11 +147,12 @@ def start_serving(addr: Address, contact_node_addr: Address):
 
             __heartbeat(request, addr)
             if len(request["entries"]) != 0:
-                return __log_replication(request, addr)
-            elif request["leader_commit_index"] > server.instance.commit_index:
-                return __commit_log(request, addr)
-            else:
-                return __success_append_entry_response()
+                __log_replication(request, addr)
+            
+            if request["leader_commit_index"] > server.instance.commit_index:
+                __commit_log(request, addr)
+            
+            return __success_append_entry_response()
 
         # harusnya di masukin ke heatbeat?
         @server.register_function
@@ -199,7 +208,6 @@ def start_serving(addr: Address, contact_node_addr: Address):
 
                 # 1. masukin log
                 server.instance.log.append(entry)
-                server.instance.entry = entry
 
                 # 2. lakukan log replication
                 # AppendEntry RPC with entry
@@ -227,7 +235,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
                     # ? kalo majority agree, leader commit log dan apply ke state machine
                     __print_log_server(f"Majority agree, commit log")
                     server.instance.commit_index += 1
-                    server.instance._apply_entries()
+                    server.instance._apply_log()
                     server.instance._set_election_timeout()
 
                     # ? kalo udah commit log, kirim response ke client

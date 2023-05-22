@@ -61,7 +61,6 @@ class RaftNode:
         self.type:                RaftNode.NodeType = RaftNode.NodeType.FOLLOWER
         self.log:                 List[int, str,
                                        str] = []  # [term, command, args]
-        self.entry:               List[int, str, str] = []
         self.app:                 MessageQueue = application
 
         # Election stuff
@@ -408,11 +407,11 @@ class RaftNode:
     #     return response
         return response
     
-    def _apply_entries(self):
+    def _apply_log(self):
         """ 
         This function will apply entries to the state machine
         """
-        if self.commit_index > self.last_applied:
+        while self.commit_index > self.last_applied:
             self.last_applied += 1
 
             if (self.log[self.last_applied][1] == "queue"):
@@ -420,8 +419,6 @@ class RaftNode:
             else:
                 self.app.dequeue()
 
-            # Remove applied entries
-            self.entry.pop()
             self.__print_log("State Machine: " + str(self.app))
 
     # Inter-node RPCs
@@ -441,7 +438,7 @@ class RaftNode:
             self.cluster_leader_addr,
             prev_log_index,
             prev_log_term,
-            self.entry,
+            [],
             self.commit_index,
         )
 
@@ -452,11 +449,13 @@ class RaftNode:
         # ? If follower is not in the cluster, just ignore
         index = self.next_index[str(follower_addr)] if str(
             follower_addr) in self.next_index else 0
+        
+        self.__print_log(index)
 
         if (prev_log_index >= index):
             append_entry.entries = self.log[index:]
             self.__print_log(
-                f"Sending entries from {index} to {prev_log_index} to {follower_addr}")
+                f"Sending entries {append_entry.entries} to {follower_addr}")
 
             request = append_entry.to_dict()
             response = self.__send_request(
