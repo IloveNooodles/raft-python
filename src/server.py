@@ -128,6 +128,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
                     "status": "success",
                     "log": server.instance.log,
                     "cluster_addr_list": server.instance.cluster_addr_list,
+                    "cluster_leader_addr": server.instance.cluster_leader_addr,
                 }
             )
 
@@ -147,7 +148,8 @@ def start_serving(addr: Address, contact_node_addr: Address):
 
             if server.instance.type == RaftNode.NodeType.CANDIDATE:
                 server.instance.type = RaftNode.NodeType.FOLLOWER
-                server.instance.cluster_leader_addr = addr
+    
+            server.instance.cluster_leader_addr = addr
 
 
             __heartbeat(request, addr)

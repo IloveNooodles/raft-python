@@ -28,8 +28,8 @@ class RaftNode:
     3. Candidate will start election
     """
     HEARTBEAT_INTERVAL = 1
-    ELECTION_TIMEOUT_MIN = 5
-    ELECTION_TIMEOUT_MAX = 15
+    ELECTION_TIMEOUT_MIN = 15
+    ELECTION_TIMEOUT_MAX = 25
     RPC_TIMEOUT          = 5
 
     class NodeType(Enum):
@@ -118,19 +118,19 @@ class RaftNode:
                                        self.__leader_heartbeat()])
         self.heartbeat_thread.start()
         
-        if self.timeout_thread is not None:
-            self.timeout_thread.join()
-            self.timeout_thread = None
+        # if self.timeout_thread is not None:
+        #     self.timeout_thread.join()
+        #     self.timeout_thread = None
 
     def initialize_as_follower(self):
         # ? Initialize as follower node
         self.__print_log("Initialize as follower node...")
         self.type = RaftNode.NodeType.FOLLOWER
-        print("MASUK Ga heart")
-        if self.heartbeat_thread is not None:
-            print("masuk")
-            self.heartbeat_thread.join()
-            self.heartbeat_thread = None
+        # print("MASUK Ga heart")
+        # if self.heartbeat_thread is not None:
+        #     print("masuk")
+        #     self.heartbeat_thread.join()
+        #     self.heartbeat_thread = None
         self.__listen_timeout()
 
 
@@ -186,7 +186,7 @@ class RaftNode:
         """
 
         has_leader = False
-        while not has_leader:
+        while not has_leader and not self.type == RaftNode.NodeType.LEADER:
             is_candidate = self.type == RaftNode.NodeType.CANDIDATE
             is_follower = self.type == RaftNode.NodeType.FOLLOWER
             is_timeout = time.time() > self.election_timeout
@@ -337,14 +337,14 @@ class RaftNode:
 
         self.log = response["log"]
         self.cluster_addr_list = response["cluster_addr_list"]
-        self.cluster_leader_addr = redirected_addr
+        self.cluster_leader_addr = response["cluster_leader_addr"]
 
         request = {
             "cluster_addr_list": self.cluster_addr_list,
         }
         for addr in self.cluster_addr_list:
             addr = Address(addr["ip"], addr["port"])
-            if addr == self.address or addr == self.cluster_leader_addr:
+            if addr == self.address or addr == redirected_addr:
                 continue
             self.__send_request(request, "update_cluster_addr_list", addr)
 
