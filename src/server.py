@@ -49,7 +49,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
         def __log_replication(request, addr):
             if (len(server.instance.log) > 0 and request["prev_log_index"] < len(server.instance.log)):
                 if (server.instance.log[request["prev_log_index"]][0] != request["prev_log_term"]):
-                    print(f"[FOLLOWER] Log is invalid")
+                    __print_log_server(f"Log is invalid")
                     return __fail_append_entry_response()
 
             # ! Need fix
@@ -62,7 +62,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
             return __success_append_entry_response()
 
         def __commit_log(request, addr):
-            print(f"[FOLLOWER] Commit log from {addr.ip}:{addr.port}")
+            __print_log_server(f"Commit log from {addr.ip}:{addr.port}")
             server.instance.commit_index = min(
                 request["leader_commit_index"], len(server.instance.log) - 1)
             server.instance._set_election_timeout()
@@ -70,7 +70,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
             return __success_append_entry_response()
 
         def __heartbeat(request, addr):
-            # server.instance.__print_log("Heartbeat from " + addr.ip + ":" + str(addr.port))
+            # __print_log_server("Heartbeat from " + addr.ip + ":" + str(addr.port))
             __print_log_server(f"Heartbeat from {addr.ip}:{addr.port}")
             if request["term"] >= server.instance.election_term:
                 server.instance.election_term = request["term"]
@@ -110,8 +110,8 @@ def start_serving(addr: Address, contact_node_addr: Address):
             server.instance.match_index[str(addr)] = 0
             server.instance.next_index[str(addr)] = 0
 
-            print(
-                f"[LEADER] New node {addr.ip}:{addr.port} joined the cluster")
+            __print_log_server(
+                f"New node {addr.ip}:{addr.port} joined the cluster")
 
             return json.dumps(
                 {
@@ -131,8 +131,6 @@ def start_serving(addr: Address, contact_node_addr: Address):
             request = json.loads(request)
             addr = Address(request["leader_addr"]["ip"],
                            int(request["leader_addr"]["port"]))
-
-            print(request)
 
             if request["term"] < server.instance.election_term:
                 return __fail_append_entry_response()
@@ -157,7 +155,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
             """
             request = json.loads(request)
 
-            # server.instance.__print_log("Update cluster addr list")
+            # __print_log_server("Update cluster addr list")
 
             # print(f"[FOLLOWER] Update cluster addr list")
 
@@ -192,8 +190,8 @@ def start_serving(addr: Address, contact_node_addr: Address):
             request = json.loads(request)
 
             if (server.instance.type == RaftNode.NodeType.LEADER):
-                # server.instance.__print_log("Execute from client " + request)
-                print(f"[LEADER] Execute from client {request}")
+                # __print_log_server("Execute from client " + request)
+                __print_log_server(f"Execute from client {request}")
                 entry = [server.instance.election_term,
                          request["command"], request["args"]]
 
@@ -223,8 +221,8 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 )
 
             elif (server.instance.type == RaftNode.NodeType.FOLLOWER):
-                # server.instance.__print_log("Redirecting to Leader")
-                print(f"[FOLLOWER] Redirecting to Leader")
+                # __print_log_server("Redirecting to Leader")
+                __print_log_server(f"[FOLLOWER] Redirecting to Leader")
 
                 leader_address = server.instance.cluster_leader_addr
                 response = ClientRPC.Response(
@@ -256,7 +254,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
             response.term = server.instance.election_term
             response.vote_granted = False
 
-            # server.instance.__print_log(f"Receive vote request from candidate {request.candidate_id} for term {request.term}")
+            # __print_log_server(f"Receive vote request from candidate {request.candidate_id} for term {request.term}")
 
             # Check if the candidate term is greater than follower term
             if request['term'] > server.instance.election_term:
