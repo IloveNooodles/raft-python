@@ -4,7 +4,7 @@ import socket
 import time
 import traceback
 from enum import Enum
-from random import random
+from random import random, uniform
 from threading import Thread
 from typing import Any, List, Dict
 from xmlrpc.client import ServerProxy
@@ -28,9 +28,9 @@ class RaftNode:
     3. Candidate will start election
     """
     HEARTBEAT_INTERVAL = 1
-    ELECTION_TIMEOUT_MIN = 2
-    ELECTION_TIMEOUT_MAX = 3
-    RPC_TIMEOUT = 0.5
+    ELECTION_TIMEOUT_MIN = 7
+    ELECTION_TIMEOUT_MAX = 12
+    RPC_TIMEOUT          = 10
 
     class NodeType(Enum):
         """ 
@@ -53,7 +53,7 @@ class RaftNode:
 
     def __init__(self, application: Any, addr: Address, contact_addr: Address = None):
         # ? random float for timeout, called here so in this node, the random float is the same
-        random_float = random()
+        random_float = uniform(RaftNode.ELECTION_TIMEOUT_MIN, RaftNode.ELECTION_TIMEOUT_MAX)
         socket.setdefaulttimeout(RaftNode.RPC_TIMEOUT)
         self.leader_id:           int = -1
         self.address:             Address = addr
@@ -66,8 +66,8 @@ class RaftNode:
         # Election stuff
         self.election_term:       int = 0
         self.election_timeout:    int = time.time(
-        ) + RaftNode.ELECTION_TIMEOUT_MIN + random_float
-        self.election_interval:   int = RaftNode.ELECTION_TIMEOUT_MIN + random_float
+        ) + random_float
+        self.election_interval:   int = random_float
         self.voted_for:           int = -1
         self.vote_count:          int = 0
 
@@ -99,8 +99,7 @@ class RaftNode:
         elif self.type == RaftNode.NodeType.FOLLOWER:
             color = Colors.OKCYAN
 
-        print(Colors.OKBLUE + f"[{self.address}]" + Colors.ENDC +
-              f"[{time.strftime('%H:%M:%S')}]" + color + f"[{self.type}]" + Colors.ENDC + f"{text}")
+        print(Colors.OKBLUE + f"[{self.address}]" + Colors.ENDC + f"[{time.strftime('%H:%M:%S')}]" + color + f"[{self.type}]" + Colors.ENDC + f" {text}")
 
     def __initialize_as_leader(self):
         # ? Initialize as leader node
@@ -114,6 +113,11 @@ class RaftNode:
         self.heartbeat_thread = Thread(target=asyncio.run, args=[
                                        self.__leader_heartbeat()])
         self.heartbeat_thread.start()
+
+    def __initialize_as_follower(self):
+        # ? Initialize as follower node
+        self.__print_log("Initialize as follower node...")
+        self.type = RaftNode.NodeType.FOLLOWER
 
     def __get_address_index(self):
         # ? Get index of this address in cluster_addr_list (equivalent to id)
@@ -138,16 +142,16 @@ class RaftNode:
                     continue
                 self.heartbeat(addr)
 
-            await self.__broadcast_cluster_addr_list()
+            # await self.__broadcast_cluster_addr_list()
             await asyncio.sleep(RaftNode.HEARTBEAT_INTERVAL)
 
     def _set_election_timeout(self, timeout=None):
         if timeout:
             self.election_timeout = timeout
         else:
-            random_float = random()
-            self.election_timeout = time.time() + RaftNode.ELECTION_TIMEOUT_MIN + random_float
-            self.election_interval = RaftNode.ELECTION_TIMEOUT_MIN + random_float
+            random_float = uniform(RaftNode.ELECTION_TIMEOUT_MIN, RaftNode.ELECTION_TIMEOUT_MAX)
+            self.election_timeout = time.time() +  random_float
+            self.election_interval = random_float
 
     def __listen_timeout(self):
         self.timeout_thread = Thread(
@@ -206,7 +210,7 @@ class RaftNode:
             "last_log_term": self.log[-1][0] if len(self.log) > 0 else 0
         }
 
-        vote_request_threads = []
+        vote_request_tasks = []
 
         majority_threshold = len(self.cluster_addr_list) // 2 + 1
 
@@ -217,10 +221,8 @@ class RaftNode:
             self.__print_log(f"Requesting vote to {addr.ip}:{addr.port}")
             try:
                 # ? Try to request vote
-                thread = ThreadWithValue(target=asyncio.run, args=[
-                                         self.__send_request_async(request, "request_vote", addr)])
-                vote_request_threads.append(thread)
-                thread.start()
+                task = asyncio.create_task(asyncio.run(self.__send_request(addr,"request_vote",request)))
+                vote_request_tasks.append(task)
             except TimeoutError:
                 # ? If timeout, continue to next node
                 self.__print_log(
@@ -233,16 +235,18 @@ class RaftNode:
                 continue
 
         # ? async tasks to get vote response
-        for thread in vote_request_threads:
-            result = thread.join()
-            if "vote_granted" in result:
-                if result["vote_granted"]:
-                    self.vote_count += 1
-                    self.__print_log(f"+1 Vote granted")
+        for task in asyncio.as_completed(vote_request_tasks):
+            response = await task
+            if "vote_granted" in response and response['vote_granted']:
+                self.vote_count += 1
 
-            # Check if majority is reached
+            # ? Check if the received vote count reaches the majority
             if self.vote_count >= majority_threshold:
+                self.__print_log("Elected as leader")
+                self.type = RaftNode.NodeType.LEADER
+                self.__initialize_as_leader()
                 break
+
 
     def __try_to_apply_membership(self, contact_addr: Address):
         """ 
@@ -273,6 +277,15 @@ class RaftNode:
         self.cluster_addr_list = response["cluster_addr_list"]
         self.cluster_leader_addr = redirected_addr
 
+        request = {
+            "cluster_addr_list": self.cluster_addr_list,
+        }
+        for addr in self.cluster_addr_list:
+            addr = Address(addr["ip"], addr["port"])
+            if addr == self.address or addr == self.cluster_leader_addr:
+                continue
+            self.__send_request(request, "update_cluster_addr_list", addr)
+
     async def __broadcast_cluster_addr_list(self):
         """
         Broadcast cluster address list to all nodes
@@ -301,9 +314,14 @@ class RaftNode:
         1. If the follower is down, just reply follower ignore (tetep ngirim kayak biasa aja walaupun mati)
         """
         # Warning : This method is blocking
+        if not isinstance(addr, Address):
+            addr = Address(addr["ip"], addr["port"])
+
         node = ServerProxy(f"http://{addr.ip}:{addr.port}")
         json_request = json.dumps(request)
         rpc_function = getattr(node, rpc_name)
+        if rpc_name == "request_vote":
+            print("Sending request vote")
         response = {
             "success": False,
         }
@@ -324,6 +342,8 @@ class RaftNode:
         """ 
         This is the async version of send request so that it wont block the main thread
         """
+        if not isinstance(addr, Address):
+            addr = Address(addr["ip"], addr["port"])
         node = ServerProxy(f"http://{addr.ip}:{addr.port}")
         json_request = json.dumps(request)
         rpc_function = getattr(node, rpc_name)
@@ -331,7 +351,7 @@ class RaftNode:
             "success": False,
         }
         try:
-            response = await json.loads(rpc_function(json_request))
+            response = json.loads(rpc_function(json_request))
             # response     = json.loads(response)
             # response     = json.loads(rpc_function(json_request))
             self.__print_log(response)
