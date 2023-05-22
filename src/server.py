@@ -86,7 +86,6 @@ def start_serving(addr: Address, contact_node_addr: Address):
             return __success_append_entry_response()
 
         def __heartbeat(request, addr):
-            # __print_log_server("Heartbeat from " + addr.ip + ":" + str(addr.port))
             __print_log_server(f"Heartbeat from {addr.ip}:{addr.port}")
             if request["term"] >= server.instance.election_term:
                 server.instance.election_term = request["term"]
@@ -182,13 +181,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
             """
             request = json.loads(request)
 
-            # __print_log_server("Update cluster addr list")
-
-            # print(f"[FOLLOWER] Update cluster addr list")
-
             __print_log_server("Update cluster addr list")
-
-            # print("cluuseter", server.instance.cluster_addr_list)
 
             cluster_addr_list = []
             for addr in request["cluster_addr_list"]:
@@ -322,7 +315,6 @@ def start_serving(addr: Address, contact_node_addr: Address):
             response.term = server.instance.election_term
             response.vote_granted = False
 
-            # __print_log_server(f"Receive vote request from candidate {request.candidate_id} for term {request.term}")
 
             # Check if the candidate term is greater than follower term
             if request['term'] > server.instance.election_term:

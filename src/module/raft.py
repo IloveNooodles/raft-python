@@ -258,43 +258,14 @@ class RaftNode:
 
         majority_threshold = len(self.cluster_addr_list) // 2 + 1
 
-        # for addr in self.cluster_addr_list:
-        #     addr = Address(addr['ip'], addr['port'])
-        #     if addr == self.address:
-        #         continue
-        #     self.__print_log(f"Requesting vote to {addr.ip}:{addr.port}")
-        #     try:
-        #         response = self.__send_request(request, "request_vote", addr)
-        #         print("response", response)
-        #         if response['vote_granted']:
-        #             self.vote_count += 1
-        #             self.__print_log(
-        #                 f"Vote granted from {addr.ip}:{addr.port}")
-        #             if self.vote_count >= majority_threshold:
-        #                 self.__print_log("Got majority vote")
-        #                 self.__initialize_as_leader()
-        #                 return
-        #         else:
-        #             self.__print_log(
-        #                 f"Vote not granted from {addr.ip}:{addr.port}")
-        #     except KeyboardInterrupt:
-        #         self.__shutdown()
-        #     except TimeoutError:
-        #         self.__print_log(
-        #             f"Request vote to {addr.ip}:{addr.port} timeout")
-        #         continue
-        #     except Exception as e:
-        #         self.__print_log(
-        #             f"Request vote to {addr.ip}:{addr.port}. Error: " + str(e))
-        #         continue
-
+        # ? async tasks to request vote
         for addr in self.cluster_addr_list:
             addr = Address(addr['ip'], addr['port'])
             if addr == self.address:
                 continue
             self.__print_log(f"Requesting vote to {addr.ip}:{addr.port}")
             try:
-                # ? Try to request vote
+                # ? Try to request vote async
                 task = self.__send_request_async(request,"request_vote",addr)
                 vote_request_tasks.append(task)
             except TimeoutError:
@@ -320,7 +291,7 @@ class RaftNode:
                 continue
             # Check if majority is reached
             if self.vote_count >= majority_threshold:
-                self.__print_log("Elected as leader")
+                self.__print_log("Majority, elected as leader")
                 self.type = RaftNode.NodeType.LEADER
                 self.__initialize_as_leader()
                 break
@@ -332,6 +303,7 @@ class RaftNode:
         1. Contact the leader first
         2. Kalo gagal coba terus sampe berhasil
         """
+        # ? Contact the leader first
         redirected_addr = contact_addr
         response = {
             "status": "redirected",
@@ -343,7 +315,7 @@ class RaftNode:
 
         redirected_addr = Address(
             response["address"]["ip"], response["address"]["port"])
-        # Retry if not success
+        # ? Retry if not success
         while response.get("status") != "success":
             self.__print_log(
                 f"Applying membership for {self.address.ip}:{self.address.port}")
@@ -402,8 +374,6 @@ class RaftNode:
             "success": False,
         }
         try:
-            # response     = await rpc_function(json_request)
-            # response     = json.loads(response)
             response = json.loads(rpc_function(json_request))
             self.__print_log(response)
         except KeyboardInterrupt:
@@ -419,7 +389,7 @@ class RaftNode:
     # ! This is unused!
     async def __send_request_async(self, request: Any, rpc_name: str, addr: Address) -> "json":
         """
-        Send Request is invoking the RPC in another server
+        send request async will invoke the RPC in another server asynchronously
 
         Need to check:
 
@@ -428,6 +398,7 @@ class RaftNode:
         if not isinstance(addr, Address):
             addr = Address(addr["ip"], addr["port"])
 
+        # ? Send request async
         node = aioxmlrpc.client.ServerProxy(f"http://{addr.ip}:{addr.port}")
         json_request = json.dumps(request)
         rpc_function = getattr(node, rpc_name)
@@ -551,13 +522,3 @@ class RaftNode:
         print(request)
         return response
 
-
-# TODO for election:
-# Todo: handle vote request response & count votes
-# detecting majority (looks like done)
-# change state to leader if majority (looks like done)
-# Todo: broadcast address list to all nodes
-# Todo: make async
-# Todo: Handle case when a candidate fails to get majority votes
-# Todo: handle listen to timeout again after failed election
-# Inti permasalahan sekarang: requestnya gak masuk karena ke block saat dia jadi candidate
