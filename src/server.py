@@ -57,7 +57,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
             # server.instance.log.extend(request["entries"])
             # server.instance.commit_index = min(
             #     request["leader_commit_index"], len(server.instance.log) - 1)
-            # server.instance._set_election_timeout()
+            server.instance._set_election_timeout()
 
             return __success_append_entry_response()
 
@@ -132,15 +132,18 @@ def start_serving(addr: Address, contact_node_addr: Address):
             addr = Address(request["leader_addr"]["ip"],
                            int(request["leader_addr"]["port"]))
 
+            print(request)
+
             if request["term"] < server.instance.election_term:
                 return __fail_append_entry_response()
 
+            __heartbeat(request, addr)
             if len(request["entries"]) != 0:
                 return __log_replication(request, addr)
             elif request["leader_commit_index"] > server.instance.commit_index:
                 return __commit_log(request, addr)
             else:
-                return __heartbeat(request, addr)
+                return __success_append_entry_response()
 
         # harusnya di masukin ke heatbeat?
         @server.register_function
