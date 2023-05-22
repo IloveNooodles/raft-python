@@ -406,6 +406,23 @@ class RaftNode:
     #         self.__print_log(f"[{addr}] Is not replying (nack)")
 
     #     return response
+        return response
+    
+    def _apply_entries(self):
+        """ 
+        This function will apply entries to the state machine
+        """
+        if self.commit_index > self.last_applied:
+            self.last_applied += 1
+
+            if (self.log[self.last_applied][1] == "queue"):
+                self.app.enqueue(self.log[self.last_applied][2])
+            else:
+                self.app.dequeue()
+
+            # Remove applied entries
+            self.entry.pop()
+            self.__print_log("State Machine: " + str(self.app))
 
     # Inter-node RPCs
     def append_entries(self, follower_addr: Address) -> "json":
