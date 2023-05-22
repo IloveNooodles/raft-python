@@ -63,7 +63,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
             for entry in request["entries"]:
                 server.instance.log.append(entry)
 
-            __print_log_server(server.instance.log)
+            # __print_log_server(server.instance.log)
 
             server.instance._set_election_timeout()
 
@@ -73,7 +73,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
             __print_log_server(f"Commit log from {addr.ip}:{addr.port}")
             server.instance.commit_index = min(
                 request["leader_commit_index"], len(server.instance.log) - 1)
-            #? Apply log to state machine
+            # ? Apply log to state machine
             server.instance._apply_log()
             server.instance._set_election_timeout()
 
@@ -153,10 +153,11 @@ def start_serving(addr: Address, contact_node_addr: Address):
             __heartbeat(request, addr)
             if len(request["entries"]) != 0:
                 __log_replication(request, addr)
-            
+                
+
             if request["leader_commit_index"] > server.instance.commit_index:
                 __commit_log(request, addr)
-            
+
             return __success_append_entry_response()
 
         # harusnya di masukin ke heatbeat?
@@ -228,7 +229,8 @@ def start_serving(addr: Address, contact_node_addr: Address):
                     responses.append(response)
 
                 # 3. Kalo majority agree, berarti
-                majority_threshold = len(server.instance.cluster_addr_list) // 2 + 1
+                majority_threshold = len(
+                    server.instance.cluster_addr_list) // 2 + 1
                 # ? leader termasuk majority, mulai dari 1
                 count_success = 1
                 # ? cek berapa banyak follower yang agree
@@ -279,7 +281,8 @@ def start_serving(addr: Address, contact_node_addr: Address):
 
             request = json.loads(request)
 
-            __print_log_server(f"Receive vote request from candidate {request['candidate_id']} for term {request['term']}")
+            __print_log_server(
+                f"Receive vote request from candidate {request['candidate_id']} for term {request['term']}")
 
             response = RequestVote.Response()
             response.term = server.instance.election_term
@@ -302,9 +305,10 @@ def start_serving(addr: Address, contact_node_addr: Address):
                 __print_log_server(
                     f"Reject vote for candidate {request['candidate_id']} for term {request['term']}")
 
-            __print_log_server(f"Send vote response to candidate {request['candidate_id']} for term {request['term']}: {response.vote_granted}")
+            __print_log_server(
+                f"Send vote response to candidate {request['candidate_id']} for term {request['term']}: {response.vote_granted}")
 
-            return json.dumps(response.to_dict()) 
+            return json.dumps(response.to_dict())
 
         try:
             server.serve_forever()

@@ -401,7 +401,6 @@ class RaftNode:
 
         return response
 
-
     # ! This is unused!
     # async def __send_request_async(self, request: Any, rpc_name: str, addr: Address) -> "json":
     #     """
@@ -432,7 +431,7 @@ class RaftNode:
 
     #     return response
         return response
-    
+
     def _apply_log(self):
         """ 
         This function will apply entries to the state machine
@@ -453,7 +452,9 @@ class RaftNode:
         This function will send heartbeat to follower address
         """
         self.last_heartbeat_received = time.time()
-        prev_log_index = max(len(self.log) - 1, 0)
+
+        # Kalo belom punya log kasih
+        prev_log_index = len(self.log) - 1
         prev_log_term = 0
 
         if len(self.log) > 0:
@@ -475,9 +476,10 @@ class RaftNode:
         # ? If follower is not in the cluster, just ignore
         index = self.next_index[str(follower_addr)] if str(
             follower_addr) in self.next_index else 0
-        
+
         self.__print_log(index)
 
+        # ? Klo prev nya kelebihan dari log index skrg, rollback sampe ketemu
         if (prev_log_index >= index):
             append_entry.entries = self.log[index:]
             self.__print_log(
@@ -487,17 +489,19 @@ class RaftNode:
             response = self.__send_request(
                 request, "append_entry", follower_addr)
 
-            if (response["success"] == False):
+            while (response["success"] == False):
                 self.next_index[str(follower_addr)] -= 1
-            else:
-                self.match_index[str(follower_addr)] = prev_log_index
-                self.next_index[str(follower_addr)] = prev_log_index
+                append_entry.prev_log_index -= 1
+                response = self.__send_request(request, "append_entry", follower_addr)
+
+            self.match_index[str(follower_addr)] = prev_log_index
+            self.next_index[str(follower_addr)] = prev_log_index
 
         else:
             request = append_entry.to_dict()
             response = self.__send_request(
                 request, "append_entry", follower_addr)
-            
+
         return response
 
     def request_vote(self, request: "json") -> "json":
