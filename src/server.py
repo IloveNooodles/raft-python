@@ -158,13 +158,20 @@ def start_serving(addr: Address, contact_node_addr: Address):
 
             request = json.loads(request)
 
+            # ? Kalo leader
+            # 1. masukin log
+            # 2. lakukan log replication
+            # 3. kasihtau kesmua commit
+            # 4. Klo udah semua commmit,
             if (server.instance.type == RaftNode.NodeType.LEADER):
                 print(f"[LEADER] Execute from client {request}")
                 entry = [server.instance.election_term, request["command"], request["args"]]
                 server.instance.log.append(entry)
                 server.instance.entry = entry
 
-                # TODO implement execute command
+
+                print(entry)
+
                 return json.dumps(
                     {
                         "status": "success",
