@@ -225,6 +225,8 @@ def start_serving(addr: Address, contact_node_addr: Address):
             request = RequestVote.Request(**request)
             response = RequestVote.Response(server.instance.election_term, False)
 
+            server.instance.__print_log(f"Receive vote request from candidate {request.candidate_id} for term {request.term}")
+
             # Check if the candidate term is greater than follower term
             if request.term > server.instance.election_term:
                 if server.instance.voted_for == -1 or server.instance.voted_for == request.candidate_id:

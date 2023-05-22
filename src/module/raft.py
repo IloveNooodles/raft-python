@@ -8,10 +8,13 @@ from random import random
 from threading import Thread
 from typing import Any, List, Dict
 from xmlrpc.client import ServerProxy
+import threading
 
+from module.struct.thread_with_value import ThreadWithValue
 from module.struct.address import Address
 from module.struct.append_entries import AppendEntry
 from module.struct.request_vote import RequestVote
+from module.struct.color import Colors
 
 class RaftNode:
     """ 
@@ -86,7 +89,14 @@ class RaftNode:
     # Internal Raft Node methods
     def __print_log(self, text: str):
         # ? Log format : [address] [time] [type] text
-        print(f"[{self.address}] [{time.strftime('%H:%M:%S')}] [{self.type}] {text}")
+        if self.type == RaftNode.NodeType.LEADER:
+            color = Colors.OKBLUE
+        elif self.type == RaftNode.NodeType.CANDIDATE:
+            color = Colors.OKGREEN
+        elif self.type == RaftNode.NodeType.FOLLOWER:
+            color = Colors.OKCYAN
+
+        print(Colors.OKBLUE + f"[{self.address}]" + Colors.ENDC + f"[{time.strftime('%H:%M:%S')}]" + color + f"[{self.type}]" + Colors.ENDC + f"{text}")
 
     def __initialize_as_leader(self):
         # ? Initialize as leader node
@@ -189,9 +199,9 @@ class RaftNode:
             "last_log_term": self.log[-1][0] if len(self.log) > 0 else 0
         }
 
-        vote_request_tasks = []
+        vote_request_threads = []
 
-        majority_count = len(self.cluster_addr_list) // 2 + 1
+        majority_threshold = len(self.cluster_addr_list) // 2 + 1
 
         for addr in self.cluster_addr_list:
             addr = Address(addr['ip'], addr['port'])
@@ -200,20 +210,9 @@ class RaftNode:
             self.__print_log(f"Requesting vote to {addr.ip}:{addr.port}")
             try:
                 # ? Try to request vote
-                task = asyncio.create_task(self.__send_request_async(request, "request_vote", addr))
-                vote_request_tasks.append(task)
-                # response = self.__send_request(request, "request_vote", addr)
-                # print(response)
-                # ? If vote granted, increment vote count
-                # if response is not None and response['vote_granted']:
-                #     self.__print_log(f"Vote granted from {addr.ip}:{addr.port}")
-                #     self.vote_count += 1
-                #     # ? If vote count > majority, become leader
-                #     if self.vote_count > len(self.cluster_addr_list) // 2:
-                #         self.__print_log("Elected as leader")
-                #         self.type = RaftNode.NodeType.LEADER
-                #         self.__initialize_as_leader()
-                #         break
+                thread = ThreadWithValue(target=asyncio.run, args=[self.__send_request_async(request, "request_vote", addr)])
+                vote_request_threads.append(thread)
+                thread.start()
             except TimeoutError:
                 # ? If timeout, continue to next node
                 self.__print_log(f"Request vote to {addr.ip}:{addr.port} timeout")
@@ -224,16 +223,15 @@ class RaftNode:
                 continue
         
         # ? async tasks to get vote response
-        for task in asyncio.as_completed(vote_request_tasks):
-            response = await task
-            if "vote_granted" in response and response['vote_granted']:
-                self.vote_count += 1
+        for thread in vote_request_threads:
+            result = thread.join()
+            if "vote_granted" in result:
+                if result["vote_granted"]:
+                    self.vote_count += 1
+                    self.__print_log(f"+1 Vote granted")
 
-            # ? Check if the received vote count reaches the majority
-            if self.vote_count >= majority_count:
-                self.__print_log("Elected as leader")
-                self.type = RaftNode.NodeType.LEADER
-                self.__initialize_as_leader()
+            # Check if majority is reached
+            if self.vote_count >= majority_threshold:
                 break
         
 
