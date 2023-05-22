@@ -29,7 +29,7 @@ class RaftNode:
     3. Candidate will start election
     """
     HEARTBEAT_INTERVAL = 1
-    ELECTION_TIMEOUT_MIN = 15
+    ELECTION_TIMEOUT_MIN = 20
     ELECTION_TIMEOUT_MAX = 25
     RPC_TIMEOUT          = 5
 
