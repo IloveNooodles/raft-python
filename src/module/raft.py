@@ -28,9 +28,9 @@ class RaftNode:
     3. Candidate will start election
     """
     HEARTBEAT_INTERVAL = 1
-    ELECTION_TIMEOUT_MIN = 7
-    ELECTION_TIMEOUT_MAX = 12
-    RPC_TIMEOUT = 10
+    ELECTION_TIMEOUT_MIN = 5
+    ELECTION_TIMEOUT_MAX = 10
+    RPC_TIMEOUT          = 5
 
     class NodeType(Enum):
         """ 
@@ -82,6 +82,8 @@ class RaftNode:
 
         self.cluster_addr_list:   List[Address] = []
         self.cluster_leader_addr: Address = None
+
+        self.timeout_thread = None
 
         if contact_addr is None:
             self.cluster_addr_list.append(self.address)
@@ -157,6 +159,8 @@ class RaftNode:
             self.election_interval = random_float
 
     def __listen_timeout(self):
+        # if self.timeout_thread:
+        #     self.timeout_thread.join()
         self.timeout_thread = Thread(
             target=asyncio.run, args=[self.__on_timeout()])
         self.timeout_thread.start()
@@ -184,6 +188,7 @@ class RaftNode:
                 self.__print_log(
                     f"Current election term [{self.election_term}]")
                 await self.__start_election()
+                self.__listen_timeout()
                 break
 
             await asyncio.sleep(self.election_interval)
@@ -223,33 +228,64 @@ class RaftNode:
                 continue
             self.__print_log(f"Requesting vote to {addr.ip}:{addr.port}")
             try:
-                # ? Try to request vote
-                task = asyncio.create_task(asyncio.run(
-                    self.__send_request(addr, "request_vote", request)))
-                vote_request_tasks.append(task)
+                response = self.__send_request(request, "request_vote", addr)
+                print("response", response)
+                if response['vote_granted']:
+                    self.vote_count += 1
+                    self.__print_log(
+                        f"Vote granted from {addr.ip}:{addr.port}")
+                    if self.vote_count >= majority_threshold:
+                        self.__print_log("Got majority vote")
+                        self.__initialize_as_leader()
+                        return
+                else:
+                    self.__print_log(
+                        f"Vote not granted from {addr.ip}:{addr.port}")
             except TimeoutError:
-                # ? If timeout, continue to next node
                 self.__print_log(
                     f"Request vote to {addr.ip}:{addr.port} timeout")
                 continue
-            except KeyError:
-                # ? If key error, continue to next node
+            except Exception as e:
                 self.__print_log(
-                    f"Request vote to {addr.ip}:{addr.port} failed")
+                    f"Request vote to {addr.ip}:{addr.port}. Error: " + str(e))
                 continue
 
-        # ? async tasks to get vote response
-        for task in asyncio.as_completed(vote_request_tasks):
-            response = await task
-            if "vote_granted" in response and response['vote_granted']:
-                self.vote_count += 1
+        # for addr in self.cluster_addr_list:
+        #     addr = Address(addr['ip'], addr['port'])
+        #     if addr == self.address:
+        #         continue
+        #     self.__print_log(f"Requesting vote to {addr.ip}:{addr.port}")
+        #     try:
+        #         # ? Try to request vote
+        #         task = self.__send_request_async(request,"request_vote",addr)
+        #         vote_request_tasks.append(task)
+        #     except TimeoutError:
+        #         # ? If timeout, continue to next node
+        #         self.__print_log(
+        #             f"Request vote to {addr.ip}:{addr.port} timeout")
+        #         continue
+        #     except Exception as e:
+        #         # ? If key error, continue to next node
+        #         self.__print_log(
+        #             f"Request vote to {addr.ip}:{addr.port}. Error: " + str(e))
+        #         continue
 
-            # ? Check if the received vote count reaches the majority
-            if self.vote_count >= majority_threshold:
-                self.__print_log("Elected as leader")
-                self.type = RaftNode.NodeType.LEADER
-                self.__initialize_as_leader()
-                break
+        # # ? async tasks to get vote response
+        # for task in asyncio.as_completed(vote_request_tasks):
+        #     try:
+        #         response = await task
+        #         if "vote_granted" in response and response['vote_granted']:
+        #             self.vote_count += 1
+        #             self.__print_log(f"+1 Vote granted")
+        #     except Exception as e:
+        #         self.__print_log(f"Error: " + str(e))
+        #         continue
+        #     # Check if majority is reached
+        #     if self.vote_count >= majority_threshold:
+        #         self.__print_log("Elected as leader")
+        #         self.type = RaftNode.NodeType.LEADER
+        #         self.__initialize_as_leader()
+        #         break
 
     def __try_to_apply_membership(self, contact_addr: Address):
         """ 
@@ -289,6 +325,7 @@ class RaftNode:
                 continue
             self.__send_request(request, "update_cluster_addr_list", addr)
 
+    # ! This is unused!
     async def __broadcast_cluster_addr_list(self):
         """
         Broadcast cluster address list to all nodes
@@ -323,8 +360,6 @@ class RaftNode:
         node = ServerProxy(f"http://{addr.ip}:{addr.port}")
         json_request = json.dumps(request)
         rpc_function = getattr(node, rpc_name)
-        if rpc_name == "request_vote":
-            print("Sending request vote")
         response = {
             "success": False,
         }
@@ -341,30 +376,36 @@ class RaftNode:
 
         return response
 
-    async def __send_request_async(self, request: Any, rpc_name: str, addr: Address) -> "json":
-        """ 
-        This is the async version of send request so that it wont block the main thread
-        """
-        if not isinstance(addr, Address):
-            addr = Address(addr["ip"], addr["port"])
-        node = ServerProxy(f"http://{addr.ip}:{addr.port}")
-        json_request = json.dumps(request)
-        rpc_function = getattr(node, rpc_name)
-        response = {
-            "success": False,
-        }
-        try:
-            response = json.loads(rpc_function(json_request))
-            # response     = json.loads(response)
-            # response     = json.loads(rpc_function(json_request))
-            self.__print_log(response)
-        except KeyboardInterrupt:
-            exit(1)
-        except:
-            # traceback.print_exc()
-            self.__print_log(f"[{addr}] Is not replying (nack)")
 
-        return response
+    # ! This is unused!
+    # async def __send_request_async(self, request: Any, rpc_name: str, addr: Address) -> "json":
+    #     """
+    #     Send Request is invoking the RPC in another server
+
+    #     Need to check:
+
+    #     1. If the follower is down, just reply follower ignore (tetep ngirim kayak biasa aja walaupun mati)
+    #     """
+    #     if not isinstance(addr, Address):
+    #         addr = Address(addr["ip"], addr["port"])
+
+    #     node = aioxmlrpc.client.ServerProxy(f"http://{addr.ip}:{addr.port}")
+    #     json_request = json.dumps(request)
+    #     rpc_function = getattr(node, rpc_name)
+    #     response = {
+    #         "success": False,
+    #     }
+    #     try:
+    #         response = await rpc_function(json_request)
+    #         response = json.loads(response)
+    #         self.__print_log(response)
+    #     except KeyboardInterrupt:
+    #         exit(1)
+    #     except:
+    #         traceback.print_exc()
+    #         self.__print_log(f"[{addr}] Is not replying (nack)")
+
+    #     return response
 
     # Inter-node RPCs
     def append_entries(self, follower_addr: Address) -> "json":

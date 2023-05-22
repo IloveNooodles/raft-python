@@ -248,32 +248,33 @@ def start_serving(addr: Address, contact_node_addr: Address):
 
             # ? cek apakah si server ini udah pernah ngevote buat leader tertentu apa belom. Cek juga log nya klo lognya uptodate baru grant vote, klo ga gasuah di vote
 
-            print(
-                f"[FOLLOWER] Receive vote request from candidate {request.candidate_id} for term {request.term}")
-
             request = json.loads(request)
-            response = RequestVote.Response(
-                server.instance.election_term,
-                False,
-            )
+
+            __print_log_server(f"Receive vote request from candidate {request['candidate_id']} for term {request['term']}")
+
+            response = RequestVote.Response()
+            response.term = server.instance.election_term
+            response.vote_granted = False
 
             # server.instance.__print_log(f"Receive vote request from candidate {request.candidate_id} for term {request.term}")
 
             # Check if the candidate term is greater than follower term
-            if request.term > server.instance.election_term:
-                if server.instance.voted_for == -1 or server.instance.voted_for == request.candidate_id:
-                    server.instance.__print_log(
-                        f"Vote for candidate {request.candidate_id} for term {request.term}")
-                    server.instance.election_term = request.term
+            if request['term'] > server.instance.election_term:
+                if server.instance.voted_for == -1 or server.instance.voted_for == request['candidate_id']:
+                    __print_log_server(
+                        f"Vote for candidate {request['candidate_id']} for term {request['term']}")
+                    server.instance.election_term = request['term']
                     server.instance.type = RaftNode.NodeType.FOLLOWER
-                    server.instance.voted_for = request.candidate_id
+                    server.instance.voted_for = request['candidate_id']
                     server.instance._set_election_timeout()
                     response.vote_granted = True
             else:
-                server.instance.__print_log(
-                    f"Reject vote for candidate {request.candidate_id} for term {request.term}")
+                __print_log_server(
+                    f"Reject vote for candidate {request['candidate_id']} for term {request['term']}")
 
-            return response.to_dict()
+            __print_log_server(f"Send vote response to candidate {request['candidate_id']} for term {request['term']}: {response.vote_granted}")
+
+            return json.dumps(response.to_dict()) 
 
         try:
             server.serve_forever()
