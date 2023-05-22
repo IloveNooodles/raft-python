@@ -30,7 +30,7 @@ class RaftNode:
     HEARTBEAT_INTERVAL = 1
     ELECTION_TIMEOUT_MIN = 5
     ELECTION_TIMEOUT_MAX = 10
-    RPC_TIMEOUT          = 5
+    RPC_TIMEOUT = 5
 
     class NodeType(Enum):
         """ 
@@ -375,7 +375,6 @@ class RaftNode:
 
         return response
 
-
     # ! This is unused!
     # async def __send_request_async(self, request: Any, rpc_name: str, addr: Address) -> "json":
     #     """
@@ -406,7 +405,7 @@ class RaftNode:
 
     #     return response
         return response
-    
+
     def _apply_log(self):
         """ 
         This function will apply entries to the state machine
@@ -427,7 +426,9 @@ class RaftNode:
         This function will send heartbeat to follower address
         """
         self.last_heartbeat_received = time.time()
-        prev_log_index = max(len(self.log) - 1, 0)
+
+        # Kalo belom punya log kasih
+        prev_log_index = len(self.log) - 1
         prev_log_term = 0
 
         if len(self.log) > 0:
@@ -449,7 +450,7 @@ class RaftNode:
         # ? If follower is not in the cluster, just ignore
         index = self.next_index[str(follower_addr)] if str(
             follower_addr) in self.next_index else 0
-        
+
         self.__print_log(index)
 
         if (prev_log_index >= index):
@@ -471,7 +472,7 @@ class RaftNode:
             request = append_entry.to_dict()
             response = self.__send_request(
                 request, "append_entry", follower_addr)
-            
+
         return response
 
     def request_vote(self, request: "json") -> "json":
