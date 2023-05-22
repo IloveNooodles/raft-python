@@ -269,6 +269,30 @@ def start_serving(addr: Address, contact_node_addr: Address):
             else:
                 response = ClientRPC.Response(ClientRPC.FAILED)
                 return json.dumps(response.to_dict())
+            
+        @server.register_function
+        def request_log(request):
+            request = json.loads(request)
+
+            if (server.instance.type == RaftNode.NodeType.LEADER):
+                __print_log_server(f"Request log from client")
+                response = {
+                    "status": "success",
+                    "log": server.instance.log,
+                }
+                return json.dumps(response)
+            elif (server.instance.type == RaftNode.NodeType.FOLLOWER):
+                # __print_log_server("Redirecting to Leader")
+                __print_log_server(f"[FOLLOWER] Redirecting to Leader")
+
+                leader_address = server.instance.cluster_leader_addr
+                response = ClientRPC.Response(
+                    ClientRPC.REDIRECTED, leader_address)
+
+                return json.dumps(response.to_dict())
+            else:
+                response = ClientRPC.Response(ClientRPC.FAILED)
+                return json.dumps(response.to_dict())
 
         @server.register_function
         def request_vote(request):
