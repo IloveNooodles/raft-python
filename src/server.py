@@ -208,7 +208,7 @@ def start_serving(addr: Address, contact_node_addr: Address):
                     if addr == server.instance.cluster_leader_addr:
                         continue
 
-                    response = server.instance.append_entries()
+                    response = server.instance.append_entries(addr)
                     responses.append(response)
 
                 # 3. Kalo majority agree, berarti
