@@ -60,7 +60,7 @@ class RaftNode:
         self.address:             Address = addr
         self.type:                RaftNode.NodeType = RaftNode.NodeType.FOLLOWER
         self.log:                 List[int, str,
-                                       str] = []  # [term, command, args]
+                                       str, int] = []  # [term, command, args, request_id]
         self.app:                 MessageQueue = application
 
         # Election stuff

@@ -21,7 +21,6 @@ def __send_request(request: Any, rpc_name: str, addr: Address) -> "json":
         print("[REQUEST] Sending to server")
         try:
             response = json.loads(rpc_function(json_request))
-            print("[RESPONSE]", response)
         except KeyboardInterrupt:
             break
         except:
@@ -46,11 +45,12 @@ def validate_input(command):
     if len(command) == 1 and (command[0] == "exit"):
         return True
 
-    if len(command) != 4:
+    if len(command) < 3 or len(command) > 4:
         print("Please input correct command")
         return False
 
-    ip, port, command, args = command
+    port = command[1]
+    command = command[2]
 
     # Validate port
     try:
@@ -95,19 +95,35 @@ def start_serving(addr: Address):
         if command[0] == "exit":
             break
 
-        ip, port, command_to_execute, args = command
+        if command[2] == "queue":
+            ip, port, command_to_execute, args = command
+        else:
+            ip, port, command_to_execute = command
+            args = ""
 
         address = Address(ip, int(port))
 
         requests = ClientRPC.Request(request_id, command_to_execute, args)
-        response = __send_request(
-            requests.to_dict(), "execute_from_client", address)
+
+        if (command_to_execute == "request_log"):
+            response = __send_request(
+                requests.to_dict(), "request_log", address) 
+        else:
+            response = __send_request(
+                requests.to_dict(), "execute_from_client", address)
 
         if response["status"] == ClientRPC.REDIRECTED:
             contact_address = Address(
                 response["address"]["ip"], response["address"]["port"])
-            response = __send_request(
-                requests.to_dict(), "execute_from_client", contact_address)
+            if (command_to_execute == "request_log"):
+                response = __send_request(
+                    requests.to_dict(), "request_log", contact_address)
+            else:
+                response = __send_request(
+                    requests.to_dict(), "execute_from_client", contact_address)
+
+        if response["status"] == ClientRPC.SUCCESS:
+            request_id += 1
 
         print("[RESPONSE]", response)
 
