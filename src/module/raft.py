@@ -29,8 +29,8 @@ class RaftNode:
     3. Candidate will start election
     """
     HEARTBEAT_INTERVAL = 1
-    ELECTION_TIMEOUT_MIN = 20
-    ELECTION_TIMEOUT_MAX = 25
+    ELECTION_TIMEOUT_MIN = 40
+    ELECTION_TIMEOUT_MAX = 45
     RPC_TIMEOUT          = 5
 
     class NodeType(Enum):
@@ -471,6 +471,12 @@ class RaftNode:
             request = append_entry.to_dict()
             response = self.__send_request(
                 request, "append_entry", follower_addr)
+
+            if(not self.next_index.get(str(follower_addr))):
+              self.next_index[str(follower_addr)] = -1
+            
+            if(not self.match_index.get(str(follower_addr))) :
+              self.match_index[str(follower_addr)] = -1
 
             if (response["success"] == False):
                 if (self.next_index[str(follower_addr)] > 0):
